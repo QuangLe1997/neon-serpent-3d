@@ -1222,6 +1222,7 @@ function gameOver(){
   const headPos=worldPos(S.snake[0],0.45);
   S.deathPos=headPos.clone();
   const n=S.snake.length;
+  S.respawnLen=n;            // keep the body length when respawning with a remaining life
 
   // --- HEAD SMASH: skull crack + blood spurt ---
   sfx('death'); S.shake=1.0; S.fovKick=-7;
@@ -1252,16 +1253,35 @@ function gameOver(){
   updateLivesHUD();
   setTimeout(()=>{ if(S.lives>0) respawn(); else endSession(); }, 1400);
 }
-function respawn(){
-  // KEEP score/level/coins/evo/wallet — only reset the snake & give a 3s countdown
-  S.mode='playing'; S.deathPos=null; S.debris=null;
+// lay out a snake of the given length from the centre, coiling to fit the board (head first)
+function placeSnake(len){
   const mx=Math.floor(S.cols/2), mz=Math.floor(S.rows/2);
-  S.snake=[{x:mx+1,z:mz},{x:mx,z:mz},{x:mx-1,z:mz}];
+  const snake=[{x:mx,z:mz}]; const used=new Set([mx+'_'+mz]);
+  const backs=[{x:-1,z:0},{x:0,z:1},{x:0,z:-1},{x:1,z:0}];   // trail left/down/up/right
+  let cur={x:mx,z:mz};
+  while(snake.length<len){
+    let placed=false;
+    for(const b of backs){ const nx=cur.x+b.x, nz=cur.z+b.z, k=nx+'_'+nz;
+      if(nx>=1&&nz>=1&&nx<S.cols-1&&nz<S.rows-1&&!used.has(k)){ cur={x:nx,z:nz}; used.add(k); snake.push(cur); placed=true; break; } }
+    if(!placed) break;
+  }
+  return snake;
+}
+function respawn(){
+  // KEEP score/level/coins/evo/wallet AND the body length — only reposition + a 3s countdown
+  S.mode='playing'; S.deathPos=null; S.debris=null;
+  const len=Math.max(3, S.respawnLen||S.snake.length);
+  S.snake=placeSnake(len);
   S.prevSnake=S.snake.map(c=>({...c}));
-  S.dir={x:1,z:0}; S.nextDir={x:1,z:0}; S.accumulator=0;
-  S.shield=false; S.grace=false; S.invincibleUntil=0; S.powerup=null; powGroup.visible=false;
-  // clear hazards/items in the spawn lane so the player isn't killed instantly
-  const safe=new Set(); for(let i=-1;i<6;i++) safe.add((mx+1-i)+'_'+mz);
+  S.accumulator=0; S.shield=false; S.grace=false; S.invincibleUntil=0; S.powerup=null; powGroup.visible=false;
+  // pick an initial heading into a free cell (not body, not wall)
+  const h=S.snake[0], bodySet=new Set(S.snake.slice(1).map(c=>c.x+'_'+c.z));
+  const dirs=[{x:1,z:0},{x:0,z:1},{x:0,z:-1},{x:-1,z:0}];
+  const dir=dirs.find(d=>{const nx=h.x+d.x,nz=h.z+d.z; return nx>=1&&nz>=1&&nx<S.cols-1&&nz<S.rows-1&&!bodySet.has(nx+'_'+nz);})||{x:1,z:0};
+  S.dir={...dir}; S.nextDir={...dir};
+  // clear hazards overlapping the snake + the lane just ahead of the head
+  const safe=new Set(S.snake.map(c=>c.x+'_'+c.z));
+  for(let i=1;i<=6;i++) safe.add((h.x+dir.x*i)+'_'+(h.z+dir.z*i));
   S.obstacles=S.obstacles.filter(o=>!safe.has(o.x+'_'+o.z));
   if(S.food && safe.has(S.food.x+'_'+S.food.z)) spawnFood();
   syncObstacleMeshes(); ensureSegMeshes(S.snake.length); applyEvo(S.evo);
