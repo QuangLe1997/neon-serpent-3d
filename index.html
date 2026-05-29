@@ -37,6 +37,14 @@
     font-size:24px;font-weight:800;color:var(--gold);opacity:0;
     text-shadow:0 2px 12px rgba(231,192,106,.45);transition:opacity .15s;letter-spacing:1px;
   }
+  #buffs{position:fixed;top:108px;left:50%;transform:translateX(-50%);z-index:10;display:flex;gap:8px;}
+  .buff{display:flex;align-items:center;gap:6px;background:var(--panel);border:1px solid var(--line);
+    border-radius:11px;padding:5px 10px;backdrop-filter:blur(8px);font-size:13px;font-weight:700;
+    box-shadow:0 6px 18px rgba(0,0,0,.35);}
+  .buff .ic{font-size:15px;}
+  .buff.shield{border-color:rgba(79,209,255,.55);color:#9fe2ff;}
+  .buff.slow{border-color:rgba(176,124,255,.55);color:#cdb0ff;}
+  .buff.x2{border-color:rgba(255,210,75,.55);color:#ffe08a;}
   #speedbar{position:fixed;left:18px;top:50%;transform:translateY(-50%);width:6px;height:170px;
     background:rgba(255,255,255,.06);border-radius:6px;overflow:hidden;z-index:10;}
   #speedfill{position:absolute;bottom:0;left:0;width:100%;height:0%;
@@ -181,21 +189,22 @@
   /* ---------- MOBILE CONTROLS ---------- */
   #touch{position:fixed;inset:0;z-index:12;display:none;pointer-events:none;}
   body.touch #touch{display:block;}
-  /* DYNAMIC floating JOYSTICK — spawns where the thumb touches; arena ignores all input */
-  #joyzone{position:absolute;inset:0;pointer-events:auto;touch-action:none;z-index:12;}
-  #joystick{position:absolute;width:150px;height:150px;margin:-75px 0 0 -75px;border-radius:50%;
-    pointer-events:none;opacity:0;transition:opacity .12s;z-index:13;
-    background:radial-gradient(circle at 50% 45%,rgba(84,214,178,.12),rgba(16,21,30,.5) 70%);
+  /* FIXED joystick at center-bottom — always visible, wide grab area; arena ignores input */
+  #joypad{position:absolute;left:50%;bottom:max(20px,env(safe-area-inset-bottom));transform:translateX(-50%);
+    width:min(80vw,320px);height:200px;pointer-events:auto;touch-action:none;z-index:12;
+    display:flex;align-items:center;justify-content:center;}
+  #joystick{position:relative;width:154px;height:154px;border-radius:50%;pointer-events:none;
+    background:radial-gradient(circle at 50% 45%,rgba(84,214,178,.12),rgba(16,21,30,.55) 70%);
     border:2px solid rgba(84,214,178,.34);backdrop-filter:blur(8px);
     box-shadow:0 12px 32px rgba(0,0,0,.45),inset 0 0 28px rgba(84,214,178,.06);
-    display:flex;align-items:center;justify-content:center;}
-  #joystick.show{opacity:1;}
+    display:flex;align-items:center;justify-content:center;transition:border-color .1s,box-shadow .1s;}
+  #joystick.act{border-color:rgba(84,214,178,.7);box-shadow:0 12px 32px rgba(0,0,0,.5),0 0 30px rgba(84,214,178,.32);}
   #joystick .ring{position:absolute;inset:14px;border-radius:50%;border:1px dashed rgba(84,214,178,.18);}
   #joystick .arrows{position:absolute;inset:0;color:rgba(132,230,205,.5);font-size:13px;}
   #joystick .arrows span{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);}
   #joystick .arrows .u{top:11px;} #joystick .arrows .d{top:auto;bottom:11px;}
   #joystick .arrows .l{left:13px;} #joystick .arrows .r{left:auto;right:13px;}
-  #knob{width:64px;height:64px;border-radius:50%;will-change:transform;
+  #knob{width:66px;height:66px;border-radius:50%;will-change:transform;transition:transform .04s linear;
     background:radial-gradient(circle at 42% 36%,#b8f3e2,#54d6b2 55%,#2a9c80 100%);
     box-shadow:0 6px 18px rgba(0,0,0,.5),inset 0 2px 4px rgba(255,255,255,.5),0 0 18px rgba(84,214,178,.4);}
   /* mobile top-left buttons — above the joystick zone so they stay tappable */
@@ -227,7 +236,7 @@
     #wallet{top:max(10px,env(safe-area-inset-top));right:max(10px,env(safe-area-inset-right));padding:7px 12px 7px 9px;}
     .wval{font-size:16px;} .coinico{width:20px;height:20px;font-size:10px;} .wlabel{display:none;}
   }
-  @media (max-width:380px){ #joystick{width:132px;height:132px;margin:-66px 0 0 -66px;} #knob{width:56px;height:56px;} }
+  @media (max-width:380px){ #joystick{width:134px;height:134px;} #knob{width:58px;height:58px;} }
 </style>
 </head>
 <body>
@@ -242,6 +251,7 @@
   </div>
   <div id="combo">COMBO x2</div>
   <div id="goldwarn">★ MỒI VÀNG — NHANH LÊN ★</div>
+  <div id="buffs"></div>
 </div>
 <div id="speedbar"><div class="cap">TỐC</div><div id="speedfill"></div></div>
 <div id="pausehint">SPACE: tạm dừng &nbsp;·&nbsp; R: chơi lại</div>
@@ -265,11 +275,12 @@
     <div class="mbtn" id="mPause">⏸</div>
     <div class="mbtn" id="mRestart">↻</div>
   </div>
-  <div id="joyzone"></div>
-  <div id="joystick">
-    <div class="ring"></div>
-    <div class="arrows"><span class="u">▲</span><span class="d">▼</span><span class="l">◀</span><span class="r">▶</span></div>
-    <div id="knob"></div>
+  <div id="joypad">
+    <div id="joystick">
+      <div class="ring"></div>
+      <div class="arrows"><span class="u">▲</span><span class="d">▼</span><span class="l">◀</span><span class="r">▶</span></div>
+      <div id="knob"></div>
+    </div>
   </div>
 </div>
 
@@ -371,6 +382,7 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { Reflector } from 'three/addons/objects/Reflector.js';
 
 /* =========================================================================
    NEON SERPENT 3D — single-file release build
@@ -399,15 +411,23 @@ const COL = {
   gold2:0xf3d488, obstacle:0xc65a6a, wall:0x223040,   // muted ruby obstacle, slate wall
 };
 
-// EVOLUTION TIERS — the snake molts into a more VIP body each level
+// EVOLUTION TIERS — the snake molts into a more VIP body each level.
+// Each tier carries a BIOME (bg/fog/floor/grid/accent) so the whole arena transforms on molt.
 const EVO = [
-  {name:'LỤC BẢO',   head:0x9af0d4, body:0x2fbf9c, tail:0x12715e, metalness:0.25, roughness:0.30, clearcoat:0.70, emi:0.28, sheen:0.4, irid:0.00},
-  {name:'LAM NGỌC',  head:0xa6d4ff, body:0x2f7bff, tail:0x123a8e, metalness:0.45, roughness:0.24, clearcoat:0.90, emi:0.32, sheen:0.5, irid:0.10},
-  {name:'TỬ TINH',   head:0xdcb4ff, body:0x9b5cff, tail:0x451e8e, metalness:0.50, roughness:0.22, clearcoat:1.00, emi:0.36, sheen:0.6, irid:0.25},
-  {name:'HỒNG NGỌC', head:0xffb6c6, body:0xff4d6d, tail:0x8e1230, metalness:0.55, roughness:0.20, clearcoat:1.00, emi:0.40, sheen:0.6, irid:0.18},
-  {name:'HOÀNG KIM', head:0xfff1b4, body:0xf0c24b, tail:0x8a5e12, metalness:0.96, roughness:0.16, clearcoat:1.00, emi:0.46, sheen:0.7, irid:0.10},
-  {name:'KIM CƯƠNG', head:0xffffff, body:0xd2ecff, tail:0x82a4cc, metalness:0.60, roughness:0.06, clearcoat:1.00, emi:0.52, sheen:1.0, irid:0.95},
-  {name:'THẦN LONG', head:0xfff7da, body:0xffd86b, tail:0xff7a3d, metalness:0.88, roughness:0.10, clearcoat:1.00, emi:0.80, sheen:1.0, irid:1.00},
+  {name:'LỤC BẢO',   head:0x9af0d4, body:0x2fbf9c, tail:0x12715e, metalness:0.25, roughness:0.30, clearcoat:0.70, emi:0.28, sheen:0.4, irid:0.00,
+   bg:0x081410, fog:0x081410, floor:0x0c1913, grid:0x2f6a58, accent:0x54d6b2},
+  {name:'LAM NGỌC',  head:0xa6d4ff, body:0x2f7bff, tail:0x123a8e, metalness:0.45, roughness:0.24, clearcoat:0.90, emi:0.32, sheen:0.5, irid:0.10,
+   bg:0x070e1e, fog:0x070e1e, floor:0x0b1424, grid:0x2f5aa0, accent:0x4f93ff},
+  {name:'TỬ TINH',   head:0xdcb4ff, body:0x9b5cff, tail:0x451e8e, metalness:0.50, roughness:0.22, clearcoat:1.00, emi:0.36, sheen:0.6, irid:0.25,
+   bg:0x110a1e, fog:0x110a1e, floor:0x160c24, grid:0x6a3fae, accent:0xa066ff},
+  {name:'HỒNG NGỌC', head:0xffb6c6, body:0xff4d6d, tail:0x8e1230, metalness:0.55, roughness:0.20, clearcoat:1.00, emi:0.40, sheen:0.6, irid:0.18,
+   bg:0x1a0810, fog:0x1a0810, floor:0x220c16, grid:0xa03450, accent:0xff5d7a},
+  {name:'HOÀNG KIM', head:0xfff1b4, body:0xf0c24b, tail:0x8a5e12, metalness:0.96, roughness:0.16, clearcoat:1.00, emi:0.46, sheen:0.7, irid:0.10,
+   bg:0x140f05, fog:0x140f05, floor:0x1c1408, grid:0x9c7a2c, accent:0xf0c24b},
+  {name:'KIM CƯƠNG', head:0xffffff, body:0xd2ecff, tail:0x82a4cc, metalness:0.60, roughness:0.06, clearcoat:1.00, emi:0.52, sheen:1.0, irid:0.95,
+   bg:0x081016, fog:0x081016, floor:0x0d161f, grid:0x5a8ab0, accent:0xbfe6ff},
+  {name:'THẦN LONG', head:0xfff7da, body:0xffd86b, tail:0xff7a3d, metalness:0.88, roughness:0.10, clearcoat:1.00, emi:0.80, sheen:1.0, irid:1.00,
+   bg:0x1a0c05, fog:0x1a0c05, floor:0x231207, grid:0xb05a28, accent:0xffae5c},
 ];
 
 // ----------------------------- STATE -----------------------------
@@ -428,6 +448,10 @@ const S = {
   obstacles:[],           // [{x,z}]
   shake:0,
   evo:0, evoColors:null, evoMat:null, moltUntil:0,   // evolution / molt state
+  biome:null, biomeMix:1,                            // current biome lerp target / progress
+  powerup:null,                                      // {x,z,born,type}
+  shield:false, slowUntil:0, x2Until:0,              // active buffs
+  fovKick:0, distMul:1, camTX:0, camTZ:0,            // cinematic camera
 };
 S.best = +(localStorage.getItem('neon_serpent_best')||0);
 // persistent profile / wallet
@@ -471,6 +495,59 @@ const key = new THREE.DirectionalLight(0xfff1d8, 1.05); key.position.set(7,16,9)
 const fill = new THREE.DirectionalLight(0x6fa3c8, 0.4); fill.position.set(-8,6,-6); scene.add(fill);
 const headLight = new THREE.PointLight(COL.mint, 0, 12, 2); scene.add(headLight);
 const itemLight = new THREE.PointLight(COL.gold, 0, 7, 2); scene.add(itemLight);   // sparkle on gems
+const biomeLight = new THREE.HemisphereLight(0x223040, 0x05060a, 0.5); scene.add(biomeLight); // tints with biome
+
+// ----------------------------- NEBULA SKYDOME -----------------------------
+function makeNebulaTexture(){
+  const c=document.createElement('canvas'); c.width=1024; c.height=512; const x=c.getContext('2d');
+  x.fillStyle='#05070c'; x.fillRect(0,0,1024,512);
+  // soft nebula blobs (neutral — tinted later by material.color)
+  for(let i=0;i<7;i++){ const gx=Math.random()*1024, gy=Math.random()*512, r=120+Math.random()*220;
+    const g=x.createRadialGradient(gx,gy,0,gx,gy,r); const a=0.05+Math.random()*0.08;
+    g.addColorStop(0,`rgba(150,170,200,${a})`); g.addColorStop(1,'rgba(150,170,200,0)');
+    x.fillStyle=g; x.fillRect(0,0,1024,512); }
+  // stars
+  for(let i=0;i<520;i++){ const s=Math.random()*1.6; x.globalAlpha=0.3+Math.random()*0.7;
+    x.fillStyle='#eaf2ff'; x.fillRect(Math.random()*1024,Math.random()*512,s,s); }
+  x.globalAlpha=1;
+  const tex=new THREE.CanvasTexture(c); tex.colorSpace=THREE.SRGBColorSpace; return tex;
+}
+const nebula = new THREE.Mesh(
+  new THREE.SphereGeometry(170,32,16),
+  new THREE.MeshBasicMaterial({map:makeNebulaTexture(), side:THREE.BackSide, fog:false, color:0x3a4a60})
+);
+scene.add(nebula);
+
+// ----------------------------- BIOME (changes with evolution tier) -----------------------------
+let floorTintMat=null, gridMatRef=null, edgeMatRef=null, reflector=null;
+const _bg=new THREE.Color(), _fog=new THREE.Color(), _floorC=new THREE.Color(), _gridC=new THREE.Color(), _accC=new THREE.Color(), _nebC=new THREE.Color();
+function setBiome(tier, instant){
+  const b=EVO[tier];
+  S.biome=b; S.biomeMix = instant?1:0;
+  _bg.setHex(b.bg); _fog.setHex(b.fog); _floorC.setHex(b.floor); _gridC.setHex(b.grid); _accC.setHex(b.accent);
+  if(instant) applyBiomeNow();
+}
+function applyBiomeNow(){
+  scene.background.copy(_bg); scene.fog.color.copy(_fog);
+  if(floorTintMat) floorTintMat.color.copy(_floorC);
+  if(gridMatRef) gridMatRef.color.copy(_gridC);
+  if(edgeMatRef) edgeMatRef.emissive.copy(_accC);
+  nebula.material.color.copy(_bg).lerp(new THREE.Color(0x4a5e7a),0.55);
+  biomeLight.color.copy(_accC).lerp(new THREE.Color(0x223040),0.5);
+}
+function updateBiome(dt){
+  if(S.biomeMix>=1) return;
+  S.biomeMix=Math.min(1,S.biomeMix+dt*1.6);   // ~0.6s transition
+  const k=S.biomeMix;
+  scene.background.lerp(_bg,k*0.12+0.04); scene.fog.color.lerp(_fog,k*0.12+0.04);
+  if(floorTintMat) floorTintMat.color.lerp(_floorC,0.08);
+  if(gridMatRef) gridMatRef.color.lerp(_gridC,0.08);
+  if(edgeMatRef) edgeMatRef.emissive.lerp(_accC,0.08);
+  const nt=_bg.clone().lerp(new THREE.Color(0x4a5e7a),0.55);
+  nebula.material.color.lerp(nt,0.08);
+  const bl=_accC.clone().lerp(new THREE.Color(0x223040),0.5);
+  biomeLight.color.lerp(bl,0.08);
+}
 
 // ----------------------------- ARENA -----------------------------
 let arena = new THREE.Group(); scene.add(arena);
@@ -479,29 +556,36 @@ function worldPos(cell, y=0){
   return new THREE.Vector3((cell.x - h + 0.5)*CELL, y, (cell.z - h + 0.5)*CELL);
 }
 function buildArena(){
+  if(reflector){ reflector.geometry.dispose(); reflector.dispose?.(); }
   arena.clear();
   const N = S.grid, half = N/2;
-  // floor — soft matte, gentle radial vignette feel via dark material
-  const floor = new THREE.Mesh(
-    new THREE.PlaneGeometry(N,N),
-    new THREE.MeshStandardMaterial({color:0x0c1119, roughness:.95, metalness:.05})
-  );
-  floor.rotation.x = -Math.PI/2; floor.position.y = -0.02; arena.add(floor);
-  // subtle grid lines (calm, low opacity — readable not glaring)
-  const g = new THREE.GridHelper(N, N, 0x3a5a52, 0x1a2630);
-  g.material.transparent = true; g.material.opacity = 0.22; arena.add(g);
-  // border frame — brushed metal rail with a faint mint edge glow
+  // REFLECTIVE FLOOR — mirrors the snake & gems for a premium look
+  const res = Math.min(1024, Math.floor(1024*Math.min(devicePixelRatio,2)));
+  reflector = new Reflector(new THREE.PlaneGeometry(N,N), {
+    textureWidth: res, textureHeight: res, color: 0x4a5560
+  });
+  reflector.rotation.x = -Math.PI/2; reflector.position.y = 0; arena.add(reflector);
+  // biome-tinted darkening layer over the mirror (so it's tasteful, not a harsh mirror)
+  floorTintMat = new THREE.MeshBasicMaterial({color:0x0c1913, transparent:true, opacity:0.62, depthWrite:false});
+  const tint = new THREE.Mesh(new THREE.PlaneGeometry(N,N), floorTintMat);
+  tint.rotation.x = -Math.PI/2; tint.position.y = 0.012; arena.add(tint);
+  // subtle grid lines (biome-colored)
+  const g = new THREE.GridHelper(N, N, 0x2f6a58, 0x1a2630);
+  g.material.transparent = true; g.material.opacity = 0.22; g.position.y = 0.02; arena.add(g);
+  gridMatRef = g.material;
+  // border frame — brushed metal rail with a biome-accent edge glow
   const railMat = new THREE.MeshStandardMaterial({color:COL.wall, roughness:.35, metalness:.85, envMapIntensity:1.0});
-  const edgeMat = new THREE.MeshStandardMaterial({color:0x163a33, emissive:COL.mint, emissiveIntensity:0.45, roughness:.5, metalness:.3});
+  edgeMatRef = new THREE.MeshStandardMaterial({color:0x163a33, emissive:COL.mint, emissiveIntensity:0.5, roughness:.5, metalness:.3});
   const t = 0.34, hgt = 0.78;
   const mkWall = (w,d,x,z)=>{
     const m=new THREE.Mesh(new THREE.BoxGeometry(w,hgt,d),railMat); m.position.set(x,hgt/2-0.05,z); arena.add(m);
-    const e=new THREE.Mesh(new THREE.BoxGeometry(w*0.99,0.06,d*0.99),edgeMat); e.position.set(x,hgt-0.07,z); arena.add(e);
+    const e=new THREE.Mesh(new THREE.BoxGeometry(w*0.99,0.06,d*0.99),edgeMatRef); e.position.set(x,hgt-0.07,z); arena.add(e);
   };
   mkWall(N+t, t, 0, -half-t/2+0.02);
   mkWall(N+t, t, 0,  half+t/2-0.02);
   mkWall(t, N+t, -half-t/2+0.02, 0);
   mkWall(t, N+t,  half+t/2-0.02, 0);
+  setBiome(S.evo||0, true);   // paint arena to the current biome instantly
 }
 
 // ----------------------------- SNAKE MESHES -----------------------------
@@ -527,6 +611,7 @@ function applyEvo(t){
   const e=EVO[t]; S.evo=t; S.evoMat=e;
   S.evoColors={head:e.head, body:e.body, tail:e.tail};
   for(const m of segMeshes) tuneSegMat(m.material, e);
+  setBiome(t, false);   // smoothly morph the whole arena to this tier's biome
 }
 function ensureSegMeshes(n){
   while(segMeshes.length < n){ const m=new THREE.Mesh(segGeo, segMaterial()); m.castShadow=false; snakeGroup.add(m); segMeshes.push(m); }
@@ -647,6 +732,7 @@ function occupied(){
   S.obstacles.forEach(c=>set.add(cellKey(c)));
   if(S.food) set.add(cellKey(S.food));
   if(S.gold) set.add(cellKey(S.gold));
+  if(S.powerup) set.add(cellKey(S.powerup));
   return set;
 }
 function randomFreeCell(){
@@ -660,6 +746,55 @@ function maybeSpawnGold(){
   if(S.gold) return;
   if(Math.random() < S.cfg.goldChance){ const c=randomFreeCell(); if(c){ S.gold={...c, born:performance.now()}; sfx('goldAppear'); } }
 }
+
+// ----------------------------- POWER-UPS -----------------------------
+const POW_TYPES=[
+  {id:'shield', color:0x4fd1ff, emoji:'🛡️', label:'KHIÊN', css:'#4fd1ff'},
+  {id:'slow',   color:0xa066ff, emoji:'⏳',  label:'CHẬM',  css:'#b07cff'},
+  {id:'x2',     color:0xffd24b, emoji:'2️⃣',  label:'X2 ĐIỂM', css:'#ffd24b'},
+];
+const POW_LIFE=7200, POW_CHANCE=0.16;
+function emojiTexture(ch){
+  const c=document.createElement('canvas'); c.width=c.height=128; const x=c.getContext('2d');
+  x.font='92px serif'; x.textAlign='center'; x.textBaseline='middle'; x.fillText(ch,64,72);
+  const t=new THREE.CanvasTexture(c); t.colorSpace=THREE.SRGBColorSpace; return t;
+}
+const powTexCache={};
+const powGroup=new THREE.Group(); scene.add(powGroup); powGroup.visible=false;
+const powRing=new THREE.Mesh(new THREE.TorusGeometry(0.42,0.075,14,36),
+  new THREE.MeshStandardMaterial({color:0x111418, emissive:0xffffff, emissiveIntensity:0.9, metalness:0.5, roughness:0.25}));
+powRing.rotation.x=Math.PI/2; powGroup.add(powRing);
+const powSprite=new THREE.Sprite(new THREE.SpriteMaterial({transparent:true, depthWrite:false}));
+powSprite.scale.set(0.66,0.66,1); powGroup.add(powSprite);
+const powRingMat=powRing.material;
+function maybeSpawnPower(){
+  if(S.powerup || S.gold) return;                  // don't crowd with gold
+  if(Math.random() < POW_CHANCE){ const c=randomFreeCell();
+    if(c){ const ty=POW_TYPES[(Math.random()*POW_TYPES.length)|0];
+      S.powerup={...c, born:performance.now(), type:ty};
+      if(!powTexCache[ty.emoji]) powTexCache[ty.emoji]=emojiTexture(ty.emoji);
+      sfx('goldAppear'); } }
+}
+function applyPower(ty){
+  const now=performance.now(), h=worldPos(S.snake[0],0.5);
+  if(ty.id==='shield') S.shield=true;
+  else if(ty.id==='slow') S.slowUntil=now+5000;
+  else if(ty.id==='x2') S.x2Until=now+9000;
+  burst(h, ty.color, 30, 1.6); shockwave(worldPos(S.snake[0],0), ty.color);
+  floatPop(ty.label+'!', worldPos(S.snake[0],0.8), ty.css, 1.3);
+  flash(0.2); sfx('power'); S.fovKick=-4; refreshBuffs(now);
+}
+function breakShield(){
+  S.shield=false; const h=worldPos(S.snake[0],0.45);
+  burst(h, 0x4fd1ff, 32, 1.9); shockwave(worldPos(S.snake[0],0), 0x4fd1ff);
+  floatPop('KHIÊN VỠ', worldPos(S.snake[0],0.8), '#4fd1ff', 1.2);
+  flash(0.28); S.shake=Math.max(S.shake,0.5); sfx('shieldBreak'); S.fovKick=-4;
+  refreshBuffs(performance.now());
+}
+// floor shadows that telegraph falling rocks
+const rockShadowMat=new THREE.MeshBasicMaterial({color:0x000000,transparent:true,opacity:0,depthWrite:false});
+const rockShadows=[]; for(let i=0;i<14;i++){ const m=new THREE.Mesh(new THREE.CircleGeometry(0.5,20),rockShadowMat.clone());
+  m.rotation.x=-Math.PI/2; m.position.y=0.03; m.visible=false; scene.add(m); rockShadows.push(m); }
 
 // ----------------------------- PARTICLES -----------------------------
 const PMAX = 600;
@@ -759,6 +894,10 @@ function sfx(name){
     case 'thud':      note(95,0.32,{type:'sine',vol:0.32,slideTo:42}); note(150,0.14,{type:'triangle',vol:0.13,slideTo:60}); break;
     // shimmering ascension when the snake molts
     case 'molt':      note(880,0.5,{type:'sine',vol:0.10,slideTo:1760}); [1047,1319,1568,2093].forEach((f,i)=>note(f,0.3,{type:'triangle',vol:0.09,delay:0.08+i*0.06})); break;
+    // power-up pickup — bright uplift
+    case 'power':     [659,988,1319].forEach((f,i)=>note(f,0.2,{type:'triangle',vol:0.13,delay:i*0.05})); break;
+    // shield absorbs a hit — metallic clang
+    case 'shieldBreak': note(440,0.18,{type:'square',vol:0.16,slideTo:180}); note(880,0.12,{type:'sine',vol:0.1}); break;
   }
 }
 
@@ -769,6 +908,8 @@ function resetGame(){
   S.tick=S.cfg.baseTick; S.accumulator=0; S.combo=0; S.lastEat=0; S.shake=0;
   S.dir={x:1,z:0}; S.nextDir={x:1,z:0};
   S.obstacles=[]; S.gold=null;
+  S.powerup=null; S.shield=false; S.slowUntil=0; S.x2Until=0; powGroup.visible=false;
+  S.camTX=0; S.camTZ=0;
   const mid = Math.floor(S.grid/2);
   S.snake = [ {x:mid+1,z:mid}, {x:mid,z:mid}, {x:mid-1,z:mid} ];
   S.prevSnake = S.snake.map(c=>({...c}));
@@ -800,7 +941,7 @@ function gameOver(){
   const n=S.snake.length;
 
   // --- HEAD SMASH: skull crack + blood spurt ---
-  sfx('death'); S.shake=1.0;
+  sfx('death'); S.shake=1.0; S.fovKick=-7;
   shockwave(S.deathPos, BLOOD);
   burst(headPos.clone(), BLOOD, 40, 2.4);              // initial blood spray
   for(let k=1;k<=3;k++) setTimeout(()=>{                // ongoing bleed pulses
@@ -847,11 +988,18 @@ function levelUp(){
   S.tick = Math.max(S.cfg.minTick, S.cfg.baseTick - (S.level-1)*S.cfg.tickStep);
   // add obstacles
   for(let i=0;i<S.cfg.obstPerLvl;i++){ const c=randomFreeCell(); if(c){ c.born=performance.now(); c._landed=false; S.obstacles.push(c); } }
+  // ☄ METEOR SHOWER every 3rd level — a barrage of telegraphed rocks
+  let meteor=false;
+  if(S.level%3===0){
+    meteor=true;
+    const extra=3+Math.floor(Math.random()*3);
+    for(let i=0;i<extra;i++){ const c=randomFreeCell(); if(c){ c.born=performance.now()+i*90; c._landed=false; S.obstacles.push(c); } }
+  }
   syncObstacleMeshes();
   moltTo(Math.min(S.level-1, EVO.length-1));   // evolve / shed skin
   sfx('levelup');
   flash(0.32);
-  showLevelBanner();
+  showLevelBanner(meteor ? '☄ MƯA THIÊN THẠCH' : null);
 }
 // LỘT XÁC — shed old skin and ascend to a more VIP tier
 function moltTo(tier){
@@ -863,7 +1011,7 @@ function moltTo(tier){
   S.moltUntil = performance.now()+800;          // glow flash window
   shockwave(worldPos(S.snake[0],0), S.evoColors.head);
   burst(worldPos(S.snake[0],0.45), S.evoColors.head, 24, 1.8);   // rebirth sparkle in NEW color
-  sfx('molt');
+  sfx('molt'); S.fovKick=-6;
   if(tier > S.bestEvo){ S.bestEvo=tier; localStorage.setItem('ns_evo', tier); }
 }
 
@@ -878,14 +1026,16 @@ function tickStep(){
   const head = S.snake[0];
   const nx = head.x + S.dir.x, nz = head.z + S.dir.z;
 
-  // wall collision
-  if(nx<0||nz<0||nx>=S.grid||nz>=S.grid){ return gameOver(); }
-  // obstacle collision
-  if(S.obstacles.some(o=>o.x===nx&&o.z===nz)){ return gameOver(); }
-  // self collision (ignore tail tip which will move away when not growing)
+  // collision detection (wall / obstacle / self)
   const willGrow = (S.food && S.food.x===nx && S.food.z===nz) || (S.gold && S.gold.x===nx && S.gold.z===nz);
   const body = willGrow ? S.snake : S.snake.slice(0, S.snake.length-1);
-  if(body.some(c=>c.x===nx&&c.z===nz)){ return gameOver(); }
+  const hit = (nx<0||nz<0||nx>=S.grid||nz>=S.grid)
+           || S.obstacles.some(o=>o.x===nx&&o.z===nz)
+           || body.some(c=>c.x===nx&&c.z===nz);
+  if(hit){
+    if(S.shield){ breakShield(); return; }   // shield absorbs one hit — pause, don't move
+    return gameOver();
+  }
 
   // advance
   S.snake.unshift({x:nx,z:nz});
@@ -899,6 +1049,9 @@ function tickStep(){
   }
   if(!ate) S.snake.pop();
 
+  // power-up pickup (does not grow the snake)
+  if(S.powerup && S.powerup.x===nx && S.powerup.z===nz){ applyPower(S.powerup.type); S.powerup=null; }
+
   // keep prevSnake length aligned with snake for interpolation
   while(S.prevSnake.length < S.snake.length) S.prevSnake.push({...S.prevSnake[S.prevSnake.length-1]});
   if(S.prevSnake.length > S.snake.length) S.prevSnake.length = S.snake.length;
@@ -911,7 +1064,8 @@ function onEat(isGold){
   if(now - S.lastEat < COMBO_WINDOW) S.combo = Math.min(S.combo+1, COMBO_MAX);
   else S.combo = 0;
   S.lastEat = now;
-  const mult = 1 + S.combo*0.15;
+  const x2 = now < S.x2Until ? 2 : 1;                 // x2 power-up
+  const mult = (1 + S.combo*0.15) * x2;
   const head = S.snake[0];
 
   if(isGold){
@@ -923,7 +1077,7 @@ function onEat(isGold){
     shockwave(worldPos(head,0), COL.gold);
     floatPop('+'+pts, worldPos(head,0.7), '#e7c06a', 1.4);
     awardCoins(25 + Math.round(remain*15) + S.combo*2, worldPos(head,0.5));   // jackpot surge
-    sfx('gold'); flash(0.22); S.shake=Math.max(S.shake,0.32);
+    sfx('gold'); flash(0.22); S.shake=Math.max(S.shake,0.32); S.fovKick=-5;
     S.gold=null;
     popCombo();
   } else {
@@ -936,6 +1090,7 @@ function onEat(isGold){
     sfx('eat');
     spawnFood();
     maybeSpawnGold();
+    maybeSpawnPower();
     if(S.combo>=1) popCombo();
   }
   S.foodEaten++; S.foodThisLevel++;
@@ -947,7 +1102,7 @@ function onEat(isGold){
 // ----------------------------- RENDER UPDATE -----------------------------
 const _a=new THREE.Vector3(), _b=new THREE.Vector3();
 function updateVisuals(dt, now){
-  const t = S.mode==='playing' ? Math.min(1, S.accumulator/S.tick) : 1;
+  const t = S.mode==='playing' ? Math.min(1, S.accumulator/(S.effTick||S.tick)) : 1;
   const n = S.snake.length;
   const dead = S.mode==='gameover';
   snakeGroup.visible = true;
@@ -1038,21 +1193,46 @@ function updateVisuals(dt, now){
     }
   } else { goldMesh.visible=false; goldRing.visible=false; document.getElementById('goldwarn').style.opacity=0; }
 
-  // rocks plummet from the sky and slam down (quake on impact)
+  // rocks plummet from the sky and slam down (quake on impact) + telegraph shadow
+  for(let i=0;i<rockShadows.length;i++) rockShadows[i].visible=false;
   for(let i=0;i<S.obstacles.length;i++){
     const m=obstMeshes[i], o=S.obstacles[i]; if(!m||!o) continue;
     const age=now-(o.born||0);
-    if(age<ROCK_FALL){ const k=age/ROCK_FALL; m.position.y = ROCK_Y + (ROCK_DROP-ROCK_Y)*(1-k*k); }   // accelerating fall
-    else {
+    if(age<0){ m.visible=false; continue; }            // staggered meteor not started yet
+    m.visible=true;
+    if(age<ROCK_FALL){ const k=age/ROCK_FALL; m.position.y = ROCK_Y + (ROCK_DROP-ROCK_Y)*(1-k*k);    // accelerating fall
+      const sh=rockShadows[i]; if(sh){ const p=worldPos(o,0.03); sh.visible=true; sh.position.set(p.x,0.03,p.z);
+        sh.scale.setScalar(0.5+k*0.7); sh.material.opacity=0.12+k*0.45; }                            // warning grows
+    } else {
       if(!o._landed){ o._landed=true; onRockLand(m.position); }
-      const b=age-ROCK_FALL; m.position.y = b<150 ? ROCK_Y + Math.sin(b/150*Math.PI)*0.16 : ROCK_Y;     // settle bounce
+      const b=age-ROCK_FALL; m.position.y = b<150 ? ROCK_Y + Math.sin(b/150*Math.PI)*0.16 : ROCK_Y;   // settle bounce
     }
   }
+
+  // power-up: glowing ring + emoji, floats & pulses, expires
+  if(S.powerup){
+    const remain = 1 - (now - S.powerup.born)/POW_LIFE;
+    if(remain<=0){ S.powerup=null; powGroup.visible=false; }
+    else {
+      powGroup.visible=true;
+      const p=worldPos(S.powerup,0.6);
+      powGroup.position.set(p.x, 0.6 + Math.sin(now*0.005)*0.12, p.z);
+      powRing.rotation.z = now*0.004;
+      powRingMat.emissive.setHex(S.powerup.type.color);
+      powRingMat.emissiveIntensity = 0.7 + Math.abs(Math.sin(now*0.01))*0.5;
+      powSprite.material.map = powTexCache[S.powerup.type.emoji] || null;
+      powSprite.material.needsUpdate = true;
+      itemLight.color.setHex(S.powerup.type.color); itemLight.position.set(p.x,0.9,p.z);
+      itemLight.intensity = Math.max(itemLight.intensity, 1.0+Math.abs(Math.sin(now*0.01))*0.4);
+    }
+  } else powGroup.visible=false;
 
   updateParticles(dt);
   updateShocks(dt);
   updateSplatter(now);
+  updateBiome(dt);
   dust.rotation.y = now*0.00004;   // slow atmospheric drift
+  nebula.rotation.y = now*0.00002; nebula.position.copy(camera.position);   // sky follows camera
 
   // camera shake
   if(S.shake>0){
@@ -1073,6 +1253,14 @@ function updateHUD(){
   const fill = range>0 ? Math.min(100, ((S.cfg.baseTick - S.tick)/range)*100) : 0;
   document.getElementById('speedfill').style.height = fill+'%';
 }
+function refreshBuffs(now){
+  let h='';
+  if(S.shield) h+=`<div class="buff shield"><span class="ic">🛡️</span>KHIÊN</div>`;
+  if(now<S.slowUntil) h+=`<div class="buff slow"><span class="ic">⏳</span>${Math.ceil((S.slowUntil-now)/1000)}s</div>`;
+  if(now<S.x2Until) h+=`<div class="buff x2"><span class="ic">2️⃣</span>x2 ${Math.ceil((S.x2Until-now)/1000)}s</div>`;
+  const el=document.getElementById('buffs');
+  if(el._h!==h){ el.innerHTML=h; el._h=h; }
+}
 let comboTimer=null;
 function popCombo(){
   const el=document.getElementById('combo');
@@ -1081,10 +1269,10 @@ function popCombo(){
   clearTimeout(comboTimer);
   comboTimer=setTimeout(()=>{ el.style.opacity=0; el.style.transform='translateX(-50%) scale(.6)'; }, 900);
 }
-function showLevelBanner(){
+function showLevelBanner(extra){
   const b=document.getElementById('levelbanner');
   b.querySelector('.lv').textContent='CẤP '+S.level;
-  b.querySelector('.tag').textContent='✦ LỘT XÁC · '+EVO[S.evo].name+' ✦';
+  b.querySelector('.tag').textContent = extra || ('✦ LỘT XÁC · '+EVO[S.evo].name+' ✦');
   b.style.transition='none'; b.style.opacity='0'; b.style.transform='translate(-50%,-50%) scale(.4)';
   requestAnimationFrame(()=>{ b.style.transition='all .4s cubic-bezier(.2,1.3,.4,1)'; b.style.opacity='1'; b.style.transform='translate(-50%,-50%) scale(1)';
     setTimeout(()=>{ b.style.opacity='0'; b.style.transform='translate(-50%,-50%) scale(1.4)'; }, 850); });
@@ -1208,33 +1396,24 @@ setTimeout(dismissIntro, 6500);   // auto-advance if idle
 const isTouch = ('ontouchstart' in window) || navigator.maxTouchPoints>0;
 if(isTouch) document.body.classList.add('touch');
 
-// --- DYNAMIC FLOATING JOYSTICK: spawns at the touch point, drag to steer 4 ways ---
-const joyzone=document.getElementById('joyzone');
+// --- FIXED JOYSTICK at center-bottom: always visible, drag the knob to steer 4 ways ---
+const joypad=document.getElementById('joypad');
 const joy=document.getElementById('joystick');
 const knob=document.getElementById('knob');
-const JOY_R=46, JOY_DEAD=14;
-let joyId=null, ox=0, oy=0, lastJoyDir='';
+const JOY_R=48, JOY_DEAD=12;
+let joyId=null, lastJoyDir='';
+function joyCenter(){ const r=joy.getBoundingClientRect(); return {cx:r.left+r.width/2, cy:r.top+r.height/2}; }
 function joyStart(e){
-  if(joyId!==null || S.mode!=='playing') return;
-  if(e.target.closest && (e.target.closest('#mbtns') || e.target.closest('#wallet'))) return; // let buttons work
-  joyId=e.pointerId; ox=e.clientX; oy=e.clientY;
-  joy.style.left=ox+'px'; joy.style.top=oy+'px'; joy.classList.add('show');
-  knob.style.transform='translate(0,0)';
-  try{ joyzone.setPointerCapture(e.pointerId); }catch(_){}
-  audio(); e.preventDefault();
+  if(joyId!==null) return;
+  joyId=e.pointerId; joy.classList.add('act'); audio();
+  try{ joypad.setPointerCapture(e.pointerId); }catch(_){}
+  joyMove(e); e.preventDefault();
 }
 function joyMove(e){
   if(joyId!==e.pointerId) return;
-  let dx=e.clientX-ox, dy=e.clientY-oy;
-  let mag=Math.hypot(dx,dy)||1;
-  if(mag>JOY_R){
-    // base trails the thumb: relocate it to stay under the finger (convenient follow)
-    ox = e.clientX - dx/mag*JOY_R;
-    oy = e.clientY - dy/mag*JOY_R;
-    joy.style.left=ox+'px'; joy.style.top=oy+'px';
-    dx=e.clientX-ox; dy=e.clientY-oy; mag=JOY_R;
-  }
-  const ang=Math.atan2(dy,dx), cl=Math.min(mag,JOY_R);
+  const {cx,cy}=joyCenter();
+  const dx=e.clientX-cx, dy=e.clientY-cy;
+  const mag=Math.hypot(dx,dy)||1, cl=Math.min(mag,JOY_R), ang=Math.atan2(dy,dx);
   knob.style.transform=`translate(${Math.cos(ang)*cl}px,${Math.sin(ang)*cl}px)`;
   if(mag>JOY_DEAD){
     let nd;
@@ -1246,12 +1425,13 @@ function joyMove(e){
 }
 function joyEnd(e){
   if(joyId!==e.pointerId) return;
-  joyId=null; lastJoyDir=''; joy.classList.remove('show');   // snake keeps last heading
+  joyId=null; lastJoyDir=''; joy.classList.remove('act');
+  knob.style.transform='translate(0,0)';   // recenter; snake keeps last heading
 }
-joyzone.addEventListener('pointerdown', joyStart);
-joyzone.addEventListener('pointermove', joyMove);
-joyzone.addEventListener('pointerup', joyEnd);
-joyzone.addEventListener('pointercancel', joyEnd);
+joypad.addEventListener('pointerdown', joyStart);
+joypad.addEventListener('pointermove', joyMove);
+joypad.addEventListener('pointerup', joyEnd);
+joypad.addEventListener('pointercancel', joyEnd);
 
 const stop=e=>{e.preventDefault();e.stopPropagation();};
 document.getElementById('mPause').addEventListener('pointerdown',e=>{stop(e);
@@ -1276,8 +1456,10 @@ function loop(now){
 
   if(S.mode==='playing'){
     S.accumulator += dt*1000;
+    const effTick = S.tick * (now < S.slowUntil ? 1.7 : 1);   // slow-mo power-up
+    S.effTick = effTick;
     let guard=0;
-    while(S.accumulator >= S.tick && S.mode==='playing' && guard<5){ S.accumulator-=S.tick; tickStep(); guard++; }
+    while(S.accumulator >= effTick && S.mode==='playing' && guard<5){ S.accumulator-=effTick; tickStep(); guard++; }
   } else if(S.mode==='menu'||S.mode==='intro'){
     // idle drift for the living backdrop
     S.accumulator += dt*1000;
@@ -1296,11 +1478,23 @@ function loop(now){
   // portrait: steeper (more top-down) so the square board fills the most vertical space
   const yF = portrait ? 0.96 : 0.74;
   const zF = portrait ? 0.40 : 0.62;
-  const lift = portrait ? (1-camera.aspect)*baseDist*0.12 : 0;   // near-centered, big
-  camera.position.x = Math.sin(orbit)*baseDist*0.16;
-  camera.position.z = baseDist*zF + Math.cos(orbit)*baseDist*0.04;
-  camera.position.y = baseDist*yF;
-  camera.lookAt(0,0,lift);
+  const lift = portrait ? (1-camera.aspect)*baseDist*0.26 : 0;   // raise board above the fixed joystick
+  // cinematic fly-in: ease from a wider shot during intro
+  S.distMul += ((S.mode==='intro'?1.30:1) - S.distMul) * Math.min(1, dt*2.2);
+  const dist = baseDist * S.distMul;
+  // gentle head-follow parallax while playing (subtle — keeps full board readable)
+  let hx=0, hz=0;
+  if(S.mode==='playing' && segMeshes[0]){ hx=segMeshes[0].position.x; hz=segMeshes[0].position.z; }
+  S.camTX += (hx*0.16 - S.camTX) * Math.min(1, dt*3);
+  S.camTZ += (hz*0.16 - S.camTZ) * Math.min(1, dt*3);
+  camera.position.x = S.camTX + Math.sin(orbit)*dist*0.16;
+  camera.position.z = dist*zF + Math.cos(orbit)*dist*0.04 + S.camTZ*0.5;
+  camera.position.y = dist*yF;
+  camera.lookAt(S.camTX, 0, lift + S.camTZ);
+  // FOV punch — quick zoom-in burst on big moments, eased back to 52
+  S.fovKick += (0 - S.fovKick) * Math.min(1, dt*5);
+  const wantFov = 52 + S.fovKick;
+  if(Math.abs(camera.fov - wantFov) > 0.01){ camera.fov = wantFov; camera.updateProjectionMatrix(); }
 
   // death cinematic: lunge the camera toward the fallen head
   if(S.mode==='gameover' && S.deathPos){
@@ -1309,6 +1503,8 @@ function loop(now){
     camera.position.lerp(new THREE.Vector3(zx,zy,zz), 0.12);
     camera.lookAt(S.deathPos.x, 0.3, S.deathPos.z);
   }
+
+  refreshBuffs(now);
 
   // wallet count-up surge
   if(walletShown < walletTarget){
