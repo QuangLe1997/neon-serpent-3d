@@ -18,6 +18,12 @@
     -webkit-tap-highlight-color:transparent;touch-action:none;overscroll-behavior:none;}
   #app,canvas{position:fixed;inset:0;touch-action:none;}
   canvas{display:block;}
+  /* full-screen input shield: swallows every background touch (no stray pause / no zoom).
+     sits below the controls (z12+) so joystick & buttons still work. */
+  #inputShield{position:fixed;inset:0;z-index:11;touch-action:none;display:none;}
+  body.touch #inputShield{display:block;}
+  /* disable pinch / double-tap zoom on all controls while keeping taps working */
+  .btn,.mbtn,#muteBtn,#wallet,.overlay,#joypad,#joystick,#knob,#mbtns,#hud{touch-action:none;}
   /* countdown before the snake starts moving */
   #countdown{position:fixed;top:42%;left:50%;transform:translate(-50%,-50%);z-index:16;pointer-events:none;
     font-size:clamp(70px,20vw,150px);font-weight:900;color:var(--cream);opacity:0;
@@ -45,6 +51,10 @@
     font-size:24px;font-weight:800;color:var(--gold);opacity:0;
     text-shadow:0 2px 12px rgba(231,192,106,.45);transition:opacity .15s;letter-spacing:1px;
   }
+  #lives{position:fixed;top:58px;left:50%;transform:translateX(-50%);z-index:10;display:flex;gap:5px;
+    font-size:17px;color:#ff5d72;text-shadow:0 1px 7px rgba(255,80,100,.5);line-height:1;}
+  #lives span{animation:lifebeat 2.4s ease-in-out infinite;}
+  @keyframes lifebeat{0%,100%{transform:scale(1);}50%{transform:scale(1.12);}}
   #buffs{position:fixed;top:108px;left:50%;transform:translateX(-50%);z-index:10;display:flex;gap:8px;}
   .buff{display:flex;align-items:center;gap:6px;background:var(--panel);border:1px solid var(--line);
     border-radius:11px;padding:5px 10px;backdrop-filter:blur(8px);font-size:13px;font-weight:700;
@@ -162,6 +172,13 @@
   #menu .panel{animation-delay:.12s;}
   .btn[data-diff]{position:relative;overflow:hidden;}
   .btn[data-diff] .ic{font-size:20px;display:block;margin-bottom:3px;}
+  /* professional difficulty meter (ascending bars) */
+  .bars{display:flex;gap:3px;justify-content:center;align-items:flex-end;height:18px;margin-bottom:6px;}
+  .bars i{width:5px;border-radius:2px;background:rgba(255,255,255,.16);transition:background .15s;}
+  .bars i:nth-child(1){height:7px;} .bars i:nth-child(2){height:11px;}
+  .bars i:nth-child(3){height:15px;} .bars i:nth-child(4){height:19px;}
+  .bars i.on{background:linear-gradient(180deg,var(--mint),var(--gold));box-shadow:0 0 6px rgba(84,214,178,.35);}
+  .btn[data-diff].sel .bars i.on{background:linear-gradient(180deg,var(--gold),var(--rose));}
   .btn[data-diff].sel::after{content:'✓';position:absolute;top:6px;right:9px;font-size:12px;color:var(--gold);}
   .btn-primary{position:relative;overflow:hidden;animation:breathe 2.6s ease-in-out infinite;}
   @keyframes breathe{0%,100%{box-shadow:0 0 0 rgba(84,214,178,0);}50%{box-shadow:0 0 26px rgba(84,214,178,.28);}}
@@ -195,7 +212,7 @@
   .wval{font-size:19px;font-weight:800;color:var(--gold);min-width:18px;letter-spacing:.5px;
     text-shadow:0 1px 6px rgba(231,192,106,.3);}
   .wlabel{font-size:8px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-right:2px;}
-  .coinfly{position:fixed;left:0;top:0;width:36px;height:36px;border-radius:50%;z-index:30;pointer-events:none;
+  .coinfly{position:fixed;left:0;top:0;width:24px;height:24px;border-radius:50%;z-index:30;pointer-events:none;
     background:radial-gradient(circle at 34% 28%,#fff4cf,#edca74 50%,#b88a2c 100%);
     box-shadow:inset 0 -3px 5px rgba(120,80,0,.5),inset 0 2px 4px rgba(255,255,255,.6),0 0 18px rgba(231,192,106,.8);
     will-change:transform,opacity;display:flex;align-items:center;justify-content:center;
@@ -254,29 +271,38 @@
 
   /* ---------- RESPONSIVE ---------- */
   @media (max-width:560px){
-    #hud-top{top:max(10px,env(safe-area-inset-top));gap:8px;}
-    .stat{min-width:0;padding:6px 10px;border-radius:10px;}
-    .stat .value{font-size:16px;} .stat .label{font-size:9px;letter-spacing:1px;}
-    #combo{top:64px;font-size:20px;}
-    #speedbar{height:120px;width:6px;left:10px;}
-    .panel{padding:20px 18px;max-width:92vw;}
+    /* compact, professional top bar — fewer elements, no overlap */
+    #hud-top{top:max(9px,env(safe-area-inset-top));gap:6px;left:auto;right:auto;
+      transform:none;width:100%;justify-content:center;padding:0 116px 0 100px;}  /* clear side controls */
+    .stat{min-width:0;padding:5px 11px;border-radius:10px;}
+    .stat .value{font-size:15px;} .stat .label{font-size:8px;letter-spacing:1px;}
+    .stat.best{display:none;}                    /* best score lives on menu/profile, not in-play */
+    #combo{top:78px;font-size:19px;}
+    #lives{top:46px;font-size:14px;gap:4px;}
+    #speedbar{display:none;}                      /* speed already implied by level */
+    .panel{padding:22px 18px;max-width:92vw;}
     .title{letter-spacing:2px;}
     .diff-grid{gap:10px;}
-    .btn{padding:16px 8px;font-size:14px;}     /* bigger tap targets */
+    .btn{padding:16px 8px;font-size:14px;}
     .btn-primary{padding:18px;font-size:16px;}
     .help{font-size:11px;line-height:1.7;}
-    #pausehint{display:none;}                    /* keyboard hint useless on mobile */
+    #pausehint{display:none;}
     .go-stats{gap:18px;} .go-stat .v{font-size:24px;}
+    /* smaller side buttons */
+    #muteBtn,.mbtn{width:40px;height:40px;font-size:15px;border-radius:11px;}
+    #muteBtn{top:max(9px,env(safe-area-inset-top));left:max(9px,env(safe-area-inset-left));}
+    #mbtns{top:max(9px,env(safe-area-inset-top));left:calc(max(9px,env(safe-area-inset-left)) + 46px);gap:7px;}
+    #mRestart{display:none;}                      /* restart available in the pause dialog */
+    #wallet{top:max(9px,env(safe-area-inset-top));right:max(9px,env(safe-area-inset-right));padding:6px 11px 6px 8px;}
+    .wval{font-size:15px;} .coinico{width:19px;height:19px;font-size:10px;} .wlabel{display:none;}
   }
-  @media (max-width:560px){
-    #wallet{top:max(10px,env(safe-area-inset-top));right:max(10px,env(safe-area-inset-right));padding:7px 12px 7px 9px;}
-    .wval{font-size:16px;} .coinico{width:20px;height:20px;font-size:10px;} .wlabel{display:none;}
-  }
-  @media (max-width:380px){ #joystick{width:134px;height:134px;} #knob{width:58px;height:58px;} }
+  @media (max-width:380px){ #joystick{width:134px;height:134px;} #knob{width:58px;height:58px;}
+    #hud-top{padding:0 100px 0 88px;} .stat{padding:4px 8px;} .stat .value{font-size:13px;} }
 </style>
 </head>
 <body>
 <div id="app"></div>
+<div id="inputShield"></div>
 
 <!-- HUD -->
 <div id="hud">
@@ -288,6 +314,7 @@
   <div id="combo">COMBO x2</div>
   <div id="goldwarn">★ MỒI VÀNG — NHANH LÊN ★</div>
   <div id="buffs"></div>
+  <div id="lives"></div>
 </div>
 <div id="speedbar"><div class="cap">TỐC</div><div id="speedfill"></div></div>
 <div id="pausehint">SPACE: tạm dừng &nbsp;·&nbsp; R: chơi lại</div>
@@ -298,7 +325,7 @@
 <div id="vignette"></div>
 <div id="popups"></div>
 <div id="countdown"></div>
-<div id="muteBtn">🔊</div>
+<div id="muteBtn"></div>
 
 <!-- WALLET -->
 <div id="wallet">
@@ -343,10 +370,10 @@
   <div class="panel">
     <div style="font-size:11px;letter-spacing:3px;opacity:.6;margin-bottom:12px;text-transform:uppercase;">Chọn độ khó</div>
     <div class="diff-grid">
-      <div class="btn" data-diff="easy"><span class="ic">🌿</span>DỄ<small>chậm · sân rộng</small></div>
-      <div class="btn sel" data-diff="normal"><span class="ic">⚡</span>THƯỜNG<small>cân bằng</small></div>
-      <div class="btn" data-diff="hard"><span class="ic">🔥</span>KHÓ<small>nhanh · chướng ngại</small></div>
-      <div class="btn" data-diff="insane"><span class="ic">💀</span>ĐIÊN<small>cực nhanh · ngộp thở</small></div>
+      <div class="btn" data-diff="easy"><span class="bars"><i class="on"></i><i></i><i></i><i></i></span>DỄ<small>chậm · sân rộng</small></div>
+      <div class="btn sel" data-diff="normal"><span class="bars"><i class="on"></i><i class="on"></i><i></i><i></i></span>THƯỜNG<small>cân bằng</small></div>
+      <div class="btn" data-diff="hard"><span class="bars"><i class="on"></i><i class="on"></i><i class="on"></i><i></i></span>KHÓ<small>nhanh · chướng ngại</small></div>
+      <div class="btn" data-diff="insane"><span class="bars"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></span>ĐIÊN<small>cực nhanh · ngộp thở</small></div>
       <div class="btn btn-primary" id="startBtn">BẮT ĐẦU ▶</div>
       <div class="btn" id="profileBtn" style="grid-column:1/-1">🪙 HỒ SƠ &amp; VÍ XU</div>
     </div>
@@ -489,6 +516,8 @@ const S = {
   biome:null, biomeMix:1,                            // current biome lerp target / progress
   powerup:null,                                      // {x,z,born,type}
   shield:false, slowUntil:0, x2Until:0,              // active buffs
+  grace:false, invincibleUntil:0,                    // post-shield invincibility window
+  lives:3, maxLives:10,                              // session lives
   fovKick:0, distMul:1, camTX:0, camTZ:0,            // cinematic camera
 };
 S.best = +(localStorage.getItem('neon_serpent_best')||0);
@@ -820,6 +849,7 @@ const POW_TYPES=[
   {id:'shield', color:0x4fd1ff, emoji:'🛡️', label:'KHIÊN', css:'#4fd1ff'},
   {id:'slow',   color:0xa066ff, emoji:'⏳',  label:'CHẬM',  css:'#b07cff'},
   {id:'x2',     color:0xffd24b, emoji:'2️⃣',  label:'X2 ĐIỂM', css:'#ffd24b'},
+  {id:'life',   color:0xff5d72, emoji:'❤️', label:'+1 MẠNG', css:'#ff6b81'},   // rare
 ];
 const POW_LIFE=7200, POW_CHANCE=0.16;
 function emojiTexture(ch){
@@ -838,7 +868,9 @@ const powRingMat=powRing.material;
 function maybeSpawnPower(){
   if(S.powerup || S.gold) return;                  // don't crowd with gold
   if(Math.random() < POW_CHANCE){ const c=randomFreeCell();
-    if(c){ const ty=POW_TYPES[(Math.random()*POW_TYPES.length)|0];
+    if(c){
+      // rare extra-life (only if below cap); otherwise a normal buff
+      const ty = (S.lives<S.maxLives && Math.random()<0.12) ? POW_TYPES[3] : POW_TYPES[(Math.random()*3)|0];
       S.powerup={...c, born:performance.now(), type:ty};
       if(!powTexCache[ty.emoji]) powTexCache[ty.emoji]=emojiTexture(ty.emoji);
       sfx('goldAppear'); } }
@@ -848,14 +880,18 @@ function applyPower(ty){
   if(ty.id==='shield') S.shield=true;
   else if(ty.id==='slow') S.slowUntil=now+5000;
   else if(ty.id==='x2') S.x2Until=now+9000;
+  else if(ty.id==='life'){ gainLife(); }
   burst(h, ty.color, 30, 1.6); shockwave(worldPos(S.snake[0],0), ty.color);
   floatPop(ty.label+'!', worldPos(S.snake[0],0.8), ty.css, 1.3);
   flash(0.2); sfx('power'); S.fovKick=-4; refreshBuffs(now);
 }
 function breakShield(){
-  S.shield=false; const h=worldPos(S.snake[0],0.45);
+  S.shield=false;
+  S.grace=true; S.invincibleUntil=performance.now()+4000;   // 4s invincible — stand still, blink, await a safe turn
+  S.cdNum=null;
+  const h=worldPos(S.snake[0],0.45);
   burst(h, 0x4fd1ff, 32, 1.9); shockwave(worldPos(S.snake[0],0), 0x4fd1ff);
-  floatPop('KHIÊN VỠ', worldPos(S.snake[0],0.8), '#4fd1ff', 1.2);
+  floatPop('KHIÊN VỠ — RẼ HƯỚNG!', worldPos(S.snake[0],0.8), '#4fd1ff', 1.1);
   flash(0.28); S.shake=Math.max(S.shake,0.5); sfx('shieldBreak'); S.fovKick=-4;
   refreshBuffs(performance.now());
 }
@@ -1015,10 +1051,12 @@ function updateMusicRate(){
   const r = S.mode==='playing' ? 1 + Math.min(0.3, (S.level-1)*0.03) : 1;   // intensify with level
   try{ musicSrc.playbackRate.setTargetAtTime(r, audio().currentTime, 0.5); }catch(e){}
 }
+const SPK_ON='<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M16 8.5a4 4 0 0 1 0 7"/><path d="M19 6a8 8 0 0 1 0 12"/></svg>';
+const SPK_OFF='<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M17 9l5 6M22 9l-5 6"/></svg>';
 function setMuted(m){
   S.muted=m; localStorage.setItem('ns_muted', m?'1':'0');
   if(master) master.gain.value = m?0:0.6;
-  const b=document.getElementById('muteBtn'); if(b) b.textContent = m?'🔇':'🔊';
+  const b=document.getElementById('muteBtn'); if(b) b.innerHTML = m?SPK_OFF:SPK_ON;
 }
 
 // ----------------------------- GAME FLOW -----------------------------
@@ -1029,6 +1067,8 @@ function resetGame(){
   S.dir={x:1,z:0}; S.nextDir={x:1,z:0};
   S.obstacles=[]; S.gold=null;
   S.powerup=null; S.shield=false; S.slowUntil=0; S.x2Until=0; powGroup.visible=false;
+  S.grace=false; S.invincibleUntil=0;
+  S.lives=3;                                          // fresh session → 3 lives
   S.camTX=0; S.camTZ=0;
   const mx = Math.floor(S.cols/2), mz = Math.floor(S.rows/2);
   S.snake = [ {x:mx+1,z:mz}, {x:mx,z:mz}, {x:mx-1,z:mz} ];
@@ -1060,8 +1100,8 @@ function setCountdown(text){
 }
 const BLOOD=0xb20f1e, BLOOD2=0x7a0b16;
 function gameOver(){
-  if(S.mode==='gameover') return;
-  S.mode='gameover';
+  if(S.mode==='dying'||S.mode==='gameover') return;
+  S.mode='dying';
   S.deathStart=performance.now();
   const headPos=worldPos(S.snake[0],0.45);
   S.deathPos=headPos.clone();
@@ -1091,17 +1131,44 @@ function gameOver(){
     if(i%3===0) burst(worldPos(S.snake[i],0.45), BLOOD2, 5, 1.0);
   }
 
+  // lose one life → respawn if any left, else end the session
+  S.lives = Math.max(0, S.lives-1);
+  updateLivesHUD();
+  setTimeout(()=>{ if(S.lives>0) respawn(); else endSession(); }, 1400);
+}
+function respawn(){
+  // KEEP score/level/coins/evo/wallet — only reset the snake & give a 3s countdown
+  S.mode='playing'; S.deathPos=null; S.debris=null;
+  const mx=Math.floor(S.cols/2), mz=Math.floor(S.rows/2);
+  S.snake=[{x:mx+1,z:mz},{x:mx,z:mz},{x:mx-1,z:mz}];
+  S.prevSnake=S.snake.map(c=>({...c}));
+  S.dir={x:1,z:0}; S.nextDir={x:1,z:0}; S.accumulator=0;
+  S.shield=false; S.grace=false; S.invincibleUntil=0; S.powerup=null; powGroup.visible=false;
+  // clear hazards/items in the spawn lane so the player isn't killed instantly
+  const safe=new Set(); for(let i=-1;i<6;i++) safe.add((mx+1-i)+'_'+mz);
+  S.obstacles=S.obstacles.filter(o=>!safe.has(o.x+'_'+o.z));
+  if(S.food && safe.has(S.food.x+'_'+S.food.z)) spawnFood();
+  syncObstacleMeshes(); ensureSegMeshes(S.snake.length); applyEvo(S.evo);
+  for(const m of segMeshes){ m.material.opacity=1; m.material.transparent=false; m.scale.setScalar(1); m.rotation.set(0,0,0); }
+  snakeGroup.visible=true; headDeco.visible=true;
+  S.freezeUntil=performance.now()+3000; S.cdNum=null; S.camTX=0; S.camTZ=0;
+  updateHUD();
+}
+function endSession(){
+  S.mode='gameover';
   const newBest = S.score > S.best;
   if(newBest){ S.best=S.score; localStorage.setItem('neon_serpent_best', S.best); }
   document.getElementById('newbestLine').style.display = newBest?'block':'none';
   document.getElementById('go-level').textContent=S.level;
-  // let the corpse crumble before the reveal
-  setTimeout(showGameOver, 1400);
-}
-function showGameOver(){
   countUp('go-score', S.score, 850);
   countUp('go-coins', S.runCoins, 850);
   show('gameover');
+}
+function gainLife(){
+  if(S.lives>=S.maxLives) return;
+  S.lives++; updateLivesHUD();
+  floatPop('+1 ♥ MẠNG', worldPos(S.snake[0],0.8), '#ff6b81', 1.3);
+  flash(0.18); sfx('power');
 }
 function vignettePulse(){ const v=document.getElementById('vignette'); v.style.opacity=1; setTimeout(()=>v.style.opacity=0,520); }
 function countUp(id,to,dur=700){
@@ -1232,9 +1299,11 @@ const _a=new THREE.Vector3(), _b=new THREE.Vector3();
 function updateVisuals(dt, now){
   const t = S.mode==='playing' ? Math.min(1, S.accumulator/(S.effTick||S.tick)) : 1;
   const n = S.snake.length;
-  const dead = S.mode==='gameover';
+  const dead = (S.mode==='gameover' || S.mode==='dying');
   snakeGroup.visible = true;
   if(dead){ headDeco.visible=false; headLight.intensity=0; }
+  // invincible (shield broke): blink the serpent on/off
+  if(S.grace){ const on=Math.floor(now/110)%2===0; snakeGroup.visible=on; headDeco.visible=on; }
 
   // molt flash: a wave of light sweeps head→tail right after evolving
   const moltK = (S.moltUntil && now<S.moltUntil) ? (S.moltUntil-now)/800 : 0;
@@ -1372,10 +1441,16 @@ function updateVisuals(dt, now){
 }
 
 // ----------------------------- HUD / OVERLAYS -----------------------------
+function updateLivesHUD(){
+  const el=document.getElementById('lives'); if(!el) return;
+  let h=''; for(let i=0;i<S.lives;i++) h+='<span>♥</span>';
+  if(el._n!==h){ el.innerHTML=h; el._n=h; }
+}
 function updateHUD(){
   document.getElementById('ui-score').textContent=S.score;
   document.getElementById('ui-level').textContent=S.level;
   document.getElementById('ui-best').textContent=Math.max(S.best,S.score);
+  updateLivesHUD();
   // speed fill: how close to max speed
   const range = S.cfg.baseTick - S.cfg.minTick;
   const fill = range>0 ? Math.min(100, ((S.cfg.baseTick - S.tick)/range)*100) : 0;
@@ -1439,23 +1514,24 @@ function awardCoins(amount, worldVec){
   const start = worldToScreen(worldVec);
   const w = document.getElementById('wallet').getBoundingClientRect();
   const tx = w.left+14, ty = w.top + w.height/2;
-  const sprites = Math.min(amount, 12);
+  // few, fast, small sprites — never flood the view at high combo
+  const sprites = Math.min(amount, 5);
   const per = Math.floor(amount/sprites), extra = amount - per*sprites;
   for(let i=0;i<sprites;i++){
     const give = per + (i<extra?1:0);
     const c=document.createElement('div'); c.className='coinfly';
-    const jx=start.x+(Math.random()-0.5)*40, jy=start.y+(Math.random()-0.5)*40;
-    c.style.transform=`translate(${jx}px,${jy}px) scale(.7)`; c.style.opacity='0';  // wait at head during delay
+    const jx=start.x+(Math.random()-0.5)*30, jy=start.y+(Math.random()-0.5)*30;
+    c.style.transform=`translate(${jx}px,${jy}px) scale(.7)`; c.style.opacity='0';
     document.body.appendChild(c);
-    const delay=i*50, dur=620+Math.random()*120;
+    const delay=i*32, dur=300+Math.random()*90;
     requestAnimationFrame(()=>{
       c.animate([
         {transform:`translate(${jx}px,${jy}px) scale(.7)`,opacity:0,offset:0},
-        {transform:`translate(${jx}px,${jy}px) scale(1.1)`,opacity:1,offset:0.1},
-        {transform:`translate(${tx}px,${ty}px) scale(.55)`,opacity:1,offset:1},
-      ],{duration:dur,delay,easing:'linear',fill:'both'});   // straight-line linear move
+        {transform:`translate(${jx}px,${jy}px) scale(1)`,opacity:.95,offset:0.12},
+        {transform:`translate(${tx}px,${ty}px) scale(.5)`,opacity:.9,offset:1},
+      ],{duration:dur,delay,easing:'cubic-bezier(.4,0,.5,1)',fill:'both'});  // fast in
     });
-    setTimeout(()=>{ c.remove(); addToWallet(give); }, delay+dur+20);
+    setTimeout(()=>{ c.remove(); addToWallet(give); }, delay+dur+15);
   }
   sfx('coin');
 }
@@ -1512,7 +1588,7 @@ document.getElementById('profileBtn').onclick=openProfile;
 document.getElementById('profClose').onclick=()=>{ hide('profile'); show('menu'); };
 // sound on/off
 const muteBtn=document.getElementById('muteBtn');
-muteBtn.textContent = S.muted?'🔇':'🔊';
+muteBtn.innerHTML = S.muted?SPK_OFF:SPK_ON;
 muteBtn.addEventListener('pointerdown', e=>{ e.preventDefault(); e.stopPropagation(); audio(); startMusic(); setMuted(!S.muted); });
 
 // ----------------------------- INTRO → MENU -----------------------------
@@ -1532,12 +1608,21 @@ if(isTouch) document.body.classList.add('touch');
 const joypad=document.getElementById('joypad');
 const joy=document.getElementById('joystick');
 const knob=document.getElementById('knob');
-const JOY_R=48, JOY_DEAD=11;
-let joyId=null, lastJoyDir='';
-function joyCenter(){ const r=joy.getBoundingClientRect(); return {cx:r.left+r.width/2, cy:r.top+r.height/2}; }
-function joyApply(clientX, clientY){
-  const {cx,cy}=joyCenter();
-  const dx=clientX-cx, dy=clientY-cy;
+const JOY_R=46, JOY_DEAD=9;
+let joyId=null, ox=0, oy=0, lastJoyDir='';
+// RELATIVE "grab & drag": the touch-down point is the anchor; steering = drag away from it
+function joyStart(e){
+  if(joyId!==null) return;
+  joyId = (e.pointerId!=null) ? e.pointerId : 'm';
+  ox=e.clientX; oy=e.clientY;                 // grab anchor
+  joy.classList.add('act'); audio();
+  knob.style.transform='translate(0,0)';      // knob centered until you drag
+  e.preventDefault();
+}
+function joyMove(e){
+  if(joyId===null) return;
+  if(e.pointerId!=null && e.pointerId!==joyId) return;
+  const dx=e.clientX-ox, dy=e.clientY-oy;      // drag delta from the grab point
   const mag=Math.hypot(dx,dy)||1, cl=Math.min(mag,JOY_R), ang=Math.atan2(dy,dx);
   knob.style.transform=`translate(${Math.cos(ang)*cl}px,${Math.sin(ang)*cl}px)`;
   if(mag>JOY_DEAD){
@@ -1546,25 +1631,13 @@ function joyApply(clientX, clientY){
     else { setDir(0,dy>0?1:-1); nd=dy>0?'D':'U'; }
     if(nd!==lastJoyDir){ lastJoyDir=nd; if(navigator.vibrate) navigator.vibrate(6); }
   }
-}
-function joyStart(e){
-  if(joyId!==null) return;
-  joyId = (e.pointerId!=null) ? e.pointerId : 'm';
-  joy.classList.add('act'); audio();
-  joyApply(e.clientX, e.clientY);            // steer immediately on first touch (no capture quirks)
-  e.preventDefault();
-}
-function joyMove(e){
-  if(joyId===null) return;
-  if(e.pointerId!=null && e.pointerId!==joyId) return;
-  joyApply(e.clientX, e.clientY);
   if(e.cancelable) e.preventDefault();
 }
 function joyEnd(e){
   if(joyId===null) return;
   if(e && e.pointerId!=null && e.pointerId!==joyId) return;
   joyId=null; lastJoyDir=''; joy.classList.remove('act');
-  knob.style.transform='translate(0,0)';     // recenter; snake keeps last heading
+  knob.style.transform='translate(0,0)';      // recenter; snake keeps last heading
 }
 // only the joypad starts a drag; the WINDOW tracks move/end so re-touch & drag-out are reliable
 joypad.addEventListener('pointerdown', joyStart);
@@ -1589,11 +1662,19 @@ document.addEventListener('touchmove', touchGuard, {passive:false});
 document.addEventListener('selectstart', e=>e.preventDefault());
 document.addEventListener('contextmenu', e=>e.preventDefault());
 document.addEventListener('gesturestart', e=>{ e.preventDefault(); });
+document.addEventListener('dblclick', e=>e.preventDefault());
+// full-screen shield: any touch NOT on a control hits this and is swallowed
+// (no synthesized click → no stray pause; touch-action:none + preventDefault → no zoom/scroll).
+// No stopPropagation, so the joystick's window-level pointer tracking still works.
+const inputShield=document.getElementById('inputShield');
+['touchstart','touchmove','touchend','gesturestart','gesturechange','gestureend','dblclick','contextmenu']
+  .forEach(ev=>inputShield.addEventListener(ev, e=>{ if(e.cancelable) e.preventDefault(); }, {passive:false}));
 document.getElementById('mRestart').addEventListener('pointerdown',e=>{stop(e); startGame();});
 
 // ----------------------------- IDLE MENU SCENE -----------------------------
 // self-playing snake demo behind the intro/menu
 startDemo();
+const introDashUntil = performance.now() + 3000;   // border-sprint window during intro
 document.getElementById('ui-best').textContent=S.best;
 renderWallet();
 S.mode='intro';   // start on the cinematic intro
@@ -1605,7 +1686,23 @@ function loop(now){
   const dt=Math.min(0.05,(now-last)/1000); last=now;
 
   if(S.mode==='playing'){
-    if(S.freezeUntil && now < S.freezeUntil){
+    if(S.grace){
+      // shield broke → 4s invincible: snake frozen, blinking, waiting for a safe turn
+      S.accumulator = 0;
+      const nd=S.nextDir, h=S.snake[0];
+      const reverse = (nd.x===-S.dir.x && nd.z===-S.dir.z);
+      const nx=h.x+nd.x, nz=h.z+nd.z;
+      const safe = !reverse && (nd.x||nd.z)
+        && !(nx<0||nz<0||nx>=S.cols||nz>=S.rows)
+        && !S.obstacles.some(o=>o.x===nx&&o.z===nz)
+        && !S.snake.slice(0,S.snake.length-1).some(c=>c.x===nx&&c.z===nz);
+      if(safe){ S.dir={...nd}; S.grace=false; S.invincibleUntil=0; setCountdown(''); sfx('go'); flash(0.15); }
+      else {
+        const rem=Math.ceil((S.invincibleUntil-now)/1000);
+        if(rem!==S.cdNum){ S.cdNum=rem; setCountdown(rem>0?('⚡'+rem):''); if(rem>0) sfx('cd'); }
+        if(now > S.invincibleUntil){ setCountdown(''); gameOver(); }   // ran out → die
+      }
+    } else if(S.freezeUntil && now < S.freezeUntil){
       // countdown: snake stays still so the start isn't sudden
       S.accumulator = 0;
       const rem = Math.ceil((S.freezeUntil - now)/1000);
@@ -1616,12 +1713,13 @@ function loop(now){
       const effTick = S.tick * (now < S.slowUntil ? 1.7 : 1);   // slow-mo power-up
       S.effTick = effTick;
       let guard=0;
-      while(S.accumulator >= effTick && S.mode==='playing' && guard<5){ S.accumulator-=effTick; tickStep(); guard++; }
+      while(S.accumulator >= effTick && S.mode==='playing' && !S.grace && guard<5){ S.accumulator-=effTick; tickStep(); guard++; }
     }
   } else if(S.mode==='menu'||S.mode==='intro'){
-    // attract mode: the demo snake hunts & eats behind the overlay
+    // attract mode: first ~3s of intro = fast border dash, then hunt food
     S.accumulator += dt*1000;
-    if(S.accumulator>190){ S.accumulator=0; demoStep(); }
+    const dashing = (S.mode==='intro' && now < introDashUntil);
+    if(S.accumulator > (dashing?72:190)){ S.accumulator=0; dashing ? dashStep() : demoStep(); }
   }
 
   // fit the RECTANGULAR arena (cols × rows) — fills the screen, taller on portrait
@@ -1655,7 +1753,7 @@ function loop(now){
   if(Math.abs(camera.fov - wantFov) > 0.01){ camera.fov = wantFov; camera.updateProjectionMatrix(); }
 
   // death cinematic: lunge the camera toward the fallen head
-  if(S.mode==='gameover' && S.deathPos){
+  if((S.mode==='gameover'||S.mode==='dying') && S.deathPos){
     const k=Math.min(1,(now-S.deathStart)/1000);
     const zx=S.deathPos.x*0.5, zz=S.deathPos.z*0.5+baseDist*(0.62-0.30*k), zy=baseDist*(0.74-0.34*k);
     camera.position.lerp(new THREE.Vector3(zx,zy,zz), 0.12);
@@ -1696,6 +1794,18 @@ function startDemo(){
   ensureSegMeshes(3); applyEvo(0); spawnFood();
   snakeGroup.visible=true; headDeco.visible=true; S.debris=null;
   for(const m of segMeshes){ m.material.opacity=1; m.material.transparent=false; m.scale.setScalar(1); m.rotation.set(0,0,0); }
+}
+// intro: snake sprints clockwise around the border (fast, eye-catching)
+function dashStep(){
+  const cw={'1,0':{x:0,z:1},'0,1':{x:-1,z:0},'-1,0':{x:0,z:-1},'0,-1':{x:1,z:0}};
+  const inb=(x,z)=>x>=1&&z>=1&&x<S.cols-1&&z<S.rows-1;
+  const h=S.snake[0]; let d=S.dir;
+  if(!inb(h.x+d.x, h.z+d.z)){ const t=cw[d.x+','+d.z]; if(t) d=t; }   // turn clockwise at the wall
+  S.dir=d;
+  S.prevSnake=S.snake.map(c=>({...c}));
+  const nx=Math.max(1,Math.min(S.cols-2,h.x+d.x)), nz=Math.max(1,Math.min(S.rows-2,h.z+d.z));
+  S.snake.unshift({x:nx,z:nz}); S.snake.pop();
+  while(S.prevSnake.length<S.snake.length) S.prevSnake.push({...S.prevSnake[S.prevSnake.length-1]});
 }
 function demoStep(){
   const h=S.snake[0];
