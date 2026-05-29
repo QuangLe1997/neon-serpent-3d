@@ -502,9 +502,11 @@ S.runCoins    = 0;
 let walletShown = S.wallet, walletTarget = S.wallet;
 
 // ----------------------------- THREE SETUP -----------------------------
+const MOBILE = ('ontouchstart' in window) || navigator.maxTouchPoints>0;   // drives adaptive quality
 const app = document.getElementById('app');
-const renderer = new THREE.WebGLRenderer({ antialias:true, powerPreference:'high-performance' });
-renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+const renderer = new THREE.WebGLRenderer({ antialias:!MOBILE, powerPreference:'high-performance' });
+let pixelCap = MOBILE ? 1.5 : 2;                              // mobile renders at lower internal res
+renderer.setPixelRatio(Math.min(devicePixelRatio, pixelCap));
 renderer.setSize(innerWidth, innerHeight);
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 0.92;          // calmer exposure
@@ -618,13 +620,17 @@ function buildArena(){
   if(reflector){ reflector.geometry.dispose(); reflector.dispose?.(); }
   arena.clear();
   const cols=S.cols, rows=S.rows, hx=cols/2, hz=rows/2;
-  // REFLECTIVE FLOOR — mirrors the snake & gems for a premium look
-  const res = Math.min(1024, Math.floor(1024*Math.min(devicePixelRatio,2)));
-  reflector = new Reflector(new THREE.PlaneGeometry(cols,rows), {
-    textureWidth: res, textureHeight: res, color: 0x4a5560
-  });
-  reflector.rotation.x = -Math.PI/2; reflector.position.y = 0; arena.add(reflector);
-  // biome-tinted darkening layer over the mirror
+  // FLOOR — desktop: true mirror (Reflector). mobile: cheap glossy floor (no 2nd scene render → much smoother)
+  if(!MOBILE){
+    reflector = new Reflector(new THREE.PlaneGeometry(cols,rows), { textureWidth:1024, textureHeight:1024, color:0x4a5560 });
+    reflector.rotation.x = -Math.PI/2; reflector.position.y = 0; arena.add(reflector);
+  } else {
+    reflector = null;
+    const fl = new THREE.Mesh(new THREE.PlaneGeometry(cols,rows),
+      new THREE.MeshStandardMaterial({color:0x10161e, metalness:0.5, roughness:0.45, envMapIntensity:0.9}));
+    fl.rotation.x = -Math.PI/2; arena.add(fl);
+  }
+  // biome-tinted darkening layer over the floor
   floorTintMat = new THREE.MeshBasicMaterial({color:0x0c1913, transparent:true, opacity:0.62, depthWrite:false});
   const tint = new THREE.Mesh(new THREE.PlaneGeometry(cols,rows), floorTintMat);
   tint.rotation.x = -Math.PI/2; tint.position.y = 0.012; arena.add(tint);
@@ -1667,7 +1673,20 @@ function loop(now){
 
   updateVisuals(dt, now);
   composer.render();
+
+  // adaptive quality: if frames get heavy, drop internal resolution (one-way, debounced)
+  fpsAccum += dt; fpsFrames++;
+  if(fpsAccum >= 1){
+    const fps = fpsFrames/fpsAccum; fpsAccum=0; fpsFrames=0;
+    if(fps < 45 && pixelCap > 1.0 && now-lastDowngrade > 2500){
+      pixelCap = Math.max(1.0, pixelCap-0.25); lastDowngrade=now;
+      renderer.setPixelRatio(Math.min(devicePixelRatio, pixelCap));
+      composer.setPixelRatio?.(Math.min(devicePixelRatio, pixelCap));
+      composer.setSize(innerWidth, innerHeight);
+    }
+  }
 }
+let fpsAccum=0, fpsFrames=0, lastDowngrade=0;
 // ATTRACT MODE: a self-playing snake that hunts & eats food behind the intro/menu
 function startDemo(){
   computeDims(); buildArena();
