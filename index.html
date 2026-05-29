@@ -51,10 +51,13 @@
     font-size:24px;font-weight:800;color:var(--gold);opacity:0;
     text-shadow:0 2px 12px rgba(231,192,106,.45);transition:opacity .15s;letter-spacing:1px;
   }
-  #lives{position:fixed;top:58px;left:50%;transform:translateX(-50%);z-index:10;display:flex;gap:5px;
-    font-size:17px;color:#ff5d72;text-shadow:0 1px 7px rgba(255,80,100,.5);line-height:1;}
-  #lives span{animation:lifebeat 2.4s ease-in-out infinite;}
-  @keyframes lifebeat{0%,100%{transform:scale(1);}50%{transform:scale(1.12);}}
+  #lives{position:fixed;top:56px;left:50%;transform:translateX(-50%);z-index:10;display:flex;align-items:center;gap:6px;
+    background:var(--panel);border:1px solid rgba(255,93,114,.32);border-radius:12px;padding:4px 13px;line-height:1;
+    backdrop-filter:blur(8px);box-shadow:0 6px 16px rgba(0,0,0,.32);}
+  #lives .hrt{font-size:15px;color:#ff5d72;text-shadow:0 1px 7px rgba(255,80,100,.55);animation:lifebeat 2.2s ease-in-out infinite;}
+  #lives b{font-size:16px;font-weight:800;color:#ff8a9c;letter-spacing:.5px;}
+  #lives .lx{font-size:10px;color:var(--muted);font-weight:600;}
+  @keyframes lifebeat{0%,100%{transform:scale(1);}50%{transform:scale(1.14);}}
   #buffs{position:fixed;top:108px;left:50%;transform:translateX(-50%);z-index:10;display:flex;gap:8px;}
   .buff{display:flex;align-items:center;gap:6px;background:var(--panel);border:1px solid var(--line);
     border-radius:11px;padding:5px 10px;backdrop-filter:blur(8px);font-size:13px;font-weight:700;
@@ -278,7 +281,7 @@
     .stat .value{font-size:15px;} .stat .label{font-size:8px;letter-spacing:1px;}
     .stat.best{display:none;}                    /* best score lives on menu/profile, not in-play */
     #combo{top:78px;font-size:19px;}
-    #lives{top:46px;font-size:14px;gap:4px;}
+    #lives{top:44px;padding:3px 11px;} #lives b{font-size:15px;} #lives .hrt{font-size:14px;}
     #speedbar{display:none;}                      /* speed already implied by level */
     .panel{padding:22px 18px;max-width:92vw;}
     .title{letter-spacing:2px;}
@@ -1443,7 +1446,7 @@ function updateVisuals(dt, now){
 // ----------------------------- HUD / OVERLAYS -----------------------------
 function updateLivesHUD(){
   const el=document.getElementById('lives'); if(!el) return;
-  let h=''; for(let i=0;i<S.lives;i++) h+='<span>♥</span>';
+  const h=`<span class="hrt">♥</span><span class="lx">×</span><b>${S.lives}</b>`;
   if(el._n!==h){ el.innerHTML=h; el._n=h; }
 }
 function updateHUD(){
