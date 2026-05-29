@@ -435,7 +435,7 @@ const S = {
   mode:'menu',            // menu | playing | paused | gameover
   diff:'normal',
   cfg:DIFF.normal,
-  grid:20,
+  grid:20, cols:20, rows:20,        // rows can exceed cols on portrait (rectangular arena)
   score:0, level:1, best:0,
   foodEaten:0, foodThisLevel:0,
   tick:165, accumulator:0,
@@ -552,27 +552,45 @@ function updateBiome(dt){
 // ----------------------------- ARENA -----------------------------
 let arena = new THREE.Group(); scene.add(arena);
 function worldPos(cell, y=0){
-  const h = S.grid/2;
-  return new THREE.Vector3((cell.x - h + 0.5)*CELL, y, (cell.z - h + 0.5)*CELL);
+  return new THREE.Vector3((cell.x - S.cols/2 + 0.5)*CELL, y, (cell.z - S.rows/2 + 0.5)*CELL);
+}
+// pick arena dimensions: square on desktop, TALL RECTANGLE on portrait mobile (maximise play space)
+function computeDims(){
+  const cols = (S.cfg ? S.cfg.grid : 20);
+  const ar = innerWidth/innerHeight;
+  let rows = cols;
+  if(ar < 0.95){                                   // portrait → taller board
+    rows = Math.round(cols * Math.max(1.0, Math.min(1.9, (1/ar)*0.62)));
+  } else if(ar > 1.7){                             // very wide → mildly wide board
+    rows = Math.round(cols * Math.max(0.62, 1/ (ar*0.62)));
+    rows = Math.max(10, rows);
+  }
+  S.cols = cols; S.rows = rows; S.grid = cols;
+}
+function makeGrid(cols, rows){
+  const pts=[], hx=cols/2, hz=rows/2;
+  for(let i=0;i<=cols;i++){ const x=i-hx; pts.push(x,0,-hz, x,0,hz); }
+  for(let j=0;j<=rows;j++){ const z=j-hz; pts.push(-hx,0,z, hx,0,z); }
+  const geo=new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(pts,3));
+  const mat=new THREE.LineBasicMaterial({color:0x2f6a58, transparent:true, opacity:0.22});
+  const ls=new THREE.LineSegments(geo, mat); ls.position.y=0.02; return ls;
 }
 function buildArena(){
   if(reflector){ reflector.geometry.dispose(); reflector.dispose?.(); }
   arena.clear();
-  const N = S.grid, half = N/2;
+  const cols=S.cols, rows=S.rows, hx=cols/2, hz=rows/2;
   // REFLECTIVE FLOOR — mirrors the snake & gems for a premium look
   const res = Math.min(1024, Math.floor(1024*Math.min(devicePixelRatio,2)));
-  reflector = new Reflector(new THREE.PlaneGeometry(N,N), {
+  reflector = new Reflector(new THREE.PlaneGeometry(cols,rows), {
     textureWidth: res, textureHeight: res, color: 0x4a5560
   });
   reflector.rotation.x = -Math.PI/2; reflector.position.y = 0; arena.add(reflector);
-  // biome-tinted darkening layer over the mirror (so it's tasteful, not a harsh mirror)
+  // biome-tinted darkening layer over the mirror
   floorTintMat = new THREE.MeshBasicMaterial({color:0x0c1913, transparent:true, opacity:0.62, depthWrite:false});
-  const tint = new THREE.Mesh(new THREE.PlaneGeometry(N,N), floorTintMat);
+  const tint = new THREE.Mesh(new THREE.PlaneGeometry(cols,rows), floorTintMat);
   tint.rotation.x = -Math.PI/2; tint.position.y = 0.012; arena.add(tint);
-  // subtle grid lines (biome-colored)
-  const g = new THREE.GridHelper(N, N, 0x2f6a58, 0x1a2630);
-  g.material.transparent = true; g.material.opacity = 0.22; g.position.y = 0.02; arena.add(g);
-  gridMatRef = g.material;
+  // rectangular grid lines (biome-colored)
+  const g = makeGrid(cols, rows); arena.add(g); gridMatRef = g.material;
   // border frame — brushed metal rail with a biome-accent edge glow
   const railMat = new THREE.MeshStandardMaterial({color:COL.wall, roughness:.35, metalness:.85, envMapIntensity:1.0});
   edgeMatRef = new THREE.MeshStandardMaterial({color:0x163a33, emissive:COL.mint, emissiveIntensity:0.5, roughness:.5, metalness:.3});
@@ -581,10 +599,10 @@ function buildArena(){
     const m=new THREE.Mesh(new THREE.BoxGeometry(w,hgt,d),railMat); m.position.set(x,hgt/2-0.05,z); arena.add(m);
     const e=new THREE.Mesh(new THREE.BoxGeometry(w*0.99,0.06,d*0.99),edgeMatRef); e.position.set(x,hgt-0.07,z); arena.add(e);
   };
-  mkWall(N+t, t, 0, -half-t/2+0.02);
-  mkWall(N+t, t, 0,  half+t/2-0.02);
-  mkWall(t, N+t, -half-t/2+0.02, 0);
-  mkWall(t, N+t,  half+t/2-0.02, 0);
+  mkWall(cols+t, t, 0, -hz-t/2+0.02);
+  mkWall(cols+t, t, 0,  hz+t/2-0.02);
+  mkWall(t, rows+t, -hx-t/2+0.02, 0);
+  mkWall(t, rows+t,  hx+t/2-0.02, 0);
   setBiome(S.evo||0, true);   // paint arena to the current biome instantly
 }
 
@@ -737,7 +755,7 @@ function occupied(){
 }
 function randomFreeCell(){
   const used = occupied(); const free=[];
-  for(let x=0;x<S.grid;x++) for(let z=0;z<S.grid;z++){ const k=x+'_'+z; if(!used.has(k)) free.push({x,z}); }
+  for(let x=0;x<S.cols;x++) for(let z=0;z<S.rows;z++){ const k=x+'_'+z; if(!used.has(k)) free.push({x,z}); }
   if(!free.length) return null;
   return free[(Math.random()*free.length)|0];
 }
@@ -903,15 +921,15 @@ function sfx(name){
 
 // ----------------------------- GAME FLOW -----------------------------
 function resetGame(){
-  S.cfg = DIFF[S.diff]; S.grid = S.cfg.grid;
+  S.cfg = DIFF[S.diff]; computeDims();
   S.score=0; S.level=1; S.foodEaten=0; S.foodThisLevel=0;
   S.tick=S.cfg.baseTick; S.accumulator=0; S.combo=0; S.lastEat=0; S.shake=0;
   S.dir={x:1,z:0}; S.nextDir={x:1,z:0};
   S.obstacles=[]; S.gold=null;
   S.powerup=null; S.shield=false; S.slowUntil=0; S.x2Until=0; powGroup.visible=false;
   S.camTX=0; S.camTZ=0;
-  const mid = Math.floor(S.grid/2);
-  S.snake = [ {x:mid+1,z:mid}, {x:mid,z:mid}, {x:mid-1,z:mid} ];
+  const mx = Math.floor(S.cols/2), mz = Math.floor(S.rows/2);
+  S.snake = [ {x:mx+1,z:mz}, {x:mx,z:mz}, {x:mx-1,z:mz} ];
   S.prevSnake = S.snake.map(c=>({...c}));
   buildArena();
   syncObstacleMeshes();
@@ -1029,7 +1047,7 @@ function tickStep(){
   // collision detection (wall / obstacle / self)
   const willGrow = (S.food && S.food.x===nx && S.food.z===nz) || (S.gold && S.gold.x===nx && S.gold.z===nz);
   const body = willGrow ? S.snake : S.snake.slice(0, S.snake.length-1);
-  const hit = (nx<0||nz<0||nx>=S.grid||nz>=S.grid)
+  const hit = (nx<0||nz<0||nx>=S.cols||nz>=S.rows)
            || S.obstacles.some(o=>o.x===nx&&o.z===nz)
            || body.some(c=>c.x===nx&&c.z===nz);
   if(hit){
@@ -1440,8 +1458,10 @@ document.getElementById('mRestart').addEventListener('pointerdown',e=>{stop(e); 
 
 // ----------------------------- IDLE MENU SCENE -----------------------------
 // show a slow idle snake behind menu for vibe
+computeDims();
 buildArena();
-S.snake=[{x:10,z:10},{x:9,z:10},{x:8,z:10}]; S.prevSnake=S.snake.map(c=>({...c}));
+{ const mx=Math.floor(S.cols/2), mz=Math.floor(S.rows/2);
+  S.snake=[{x:mx,z:mz},{x:mx-1,z:mz},{x:mx-2,z:mz}]; S.prevSnake=S.snake.map(c=>({...c})); }
 ensureSegMeshes(3); spawnFood();
 applyEvo(0);      // menu snake starts at tier 0
 document.getElementById('ui-best').textContent=S.best;
@@ -1466,29 +1486,29 @@ function loop(now){
     if(S.accumulator>320){ S.accumulator=0; idleDrift(); }
   }
 
-  // aspect-aware framing: fill the screen as much as possible (esp. portrait phones)
+  // fit the RECTANGULAR arena (cols × rows) — fills the screen, taller on portrait
   const vFov = THREE.MathUtils.degToRad(camera.fov);
   const t = Math.tan(vFov/2);
   const portrait = camera.aspect < 1;
-  const margin = S.grid * (portrait ? 0.52 : 0.64);   // minimal padding on phones → biggest board
-  const fitDist = Math.max(margin/t, margin/(t*camera.aspect));
-  const baseDist = fitDist;
+  const padF = portrait ? 0.06 : 0.14;                 // landscape keeps the original framing
+  const mW = S.cols/2 + S.cols*padF;
+  const mD = S.rows/2 + S.cols*padF;
+  const baseDist = Math.max(mW/(t*camera.aspect), mD/t);
   const idle = (S.mode==='menu'||S.mode==='intro');
   const orbit = idle ? now*0.00012 : 0;
-  // portrait: steeper (more top-down) so the square board fills the most vertical space
-  const yF = portrait ? 0.96 : 0.74;
-  const zF = portrait ? 0.40 : 0.62;
-  const lift = portrait ? (1-camera.aspect)*baseDist*0.26 : 0;   // raise board above the fixed joystick
+  const yF = portrait ? 0.98 : 0.74;                   // portrait: steeper (more top-down)
+  const zF = portrait ? 0.34 : 0.62;
+  const lift = portrait ? baseDist*0.10 : 0;           // nudge up so the joystick has room
   // cinematic fly-in: ease from a wider shot during intro
   S.distMul += ((S.mode==='intro'?1.30:1) - S.distMul) * Math.min(1, dt*2.2);
   const dist = baseDist * S.distMul;
-  // gentle head-follow parallax while playing (subtle — keeps full board readable)
+  // gentle head-follow parallax while playing
   let hx=0, hz=0;
   if(S.mode==='playing' && segMeshes[0]){ hx=segMeshes[0].position.x; hz=segMeshes[0].position.z; }
-  S.camTX += (hx*0.16 - S.camTX) * Math.min(1, dt*3);
-  S.camTZ += (hz*0.16 - S.camTZ) * Math.min(1, dt*3);
-  camera.position.x = S.camTX + Math.sin(orbit)*dist*0.16;
-  camera.position.z = dist*zF + Math.cos(orbit)*dist*0.04 + S.camTZ*0.5;
+  S.camTX += (hx*0.12 - S.camTX) * Math.min(1, dt*3);
+  S.camTZ += (hz*0.12 - S.camTZ) * Math.min(1, dt*3);
+  camera.position.x = S.camTX + Math.sin(orbit)*dist*0.12;
+  camera.position.z = dist*zF + Math.cos(orbit)*dist*0.04 + S.camTZ*0.4;
   camera.position.y = dist*yF;
   camera.lookAt(S.camTX, 0, lift + S.camTZ);
   // FOV punch — quick zoom-in burst on big moments, eased back to 52
@@ -1521,9 +1541,9 @@ function idleDrift(){
   const dirs=[{x:1,z:0},{x:-1,z:0},{x:0,z:1},{x:0,z:-1}];
   const h=S.snake[0]; let d=S.dir;
   const nx=h.x+d.x, nz=h.z+d.z;
-  if(nx<2||nz<2||nx>S.grid-2||nz>S.grid-2||Math.random()<0.2){ d=dirs[(Math.random()*4)|0]; S.dir=d; }
+  if(nx<2||nz<2||nx>S.cols-2||nz>S.rows-2||Math.random()<0.2){ d=dirs[(Math.random()*4)|0]; S.dir=d; }
   S.prevSnake=S.snake.map(c=>({...c}));
-  const head={x:Math.max(1,Math.min(S.grid-2,h.x+S.dir.x)),z:Math.max(1,Math.min(S.grid-2,h.z+S.dir.z))};
+  const head={x:Math.max(1,Math.min(S.cols-2,h.x+S.dir.x)),z:Math.max(1,Math.min(S.rows-2,h.z+S.dir.z))};
   S.snake.unshift(head); S.snake.pop();
   while(S.prevSnake.length<S.snake.length) S.prevSnake.push({...S.prevSnake[S.prevSnake.length-1]});
 }
