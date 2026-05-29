@@ -599,6 +599,25 @@ function glowTexture(){
   g.addColorStop(0,'rgba(255,255,255,1)'); g.addColorStop(.25,'rgba(255,255,255,.55)'); g.addColorStop(1,'rgba(255,255,255,0)');
   x.fillStyle=g; x.fillRect(0,0,64,64); const t=new THREE.CanvasTexture(c); t.colorSpace=THREE.SRGBColorSpace; return t;
 }
+// Milky-Way style luminous band (soft glow strip + colour clouds + dense speckle)
+function galaxyTexture(){
+  const W=1024,H=512,c=document.createElement('canvas'); c.width=W; c.height=H; const x=c.getContext('2d');
+  x.clearRect(0,0,W,H);
+  // soft bright band down the middle
+  const g=x.createLinearGradient(0,H*0.18,0,H*0.82);
+  g.addColorStop(0,'rgba(120,140,190,0)'); g.addColorStop(.5,'rgba(150,165,210,0.5)'); g.addColorStop(1,'rgba(120,140,190,0)');
+  x.fillStyle=g; x.fillRect(0,0,W,H);
+  // faint colour clouds along the band
+  const cols=['rgba(120,150,220,0.10)','rgba(170,130,210,0.09)','rgba(210,180,150,0.08)','rgba(120,200,210,0.08)'];
+  for(let i=0;i<26;i++){ const gx=Math.random()*W, gy=H*0.5+(Math.random()-0.5)*H*0.42, r=60+Math.random()*150;
+    const rg=x.createRadialGradient(gx,gy,0,gx,gy,r); rg.addColorStop(0,cols[i%cols.length]); rg.addColorStop(1,'rgba(0,0,0,0)');
+    x.fillStyle=rg; x.fillRect(0,0,W,H); }
+  // dense star speckle concentrated near the band
+  for(let i=0;i<1400;i++){ const gy=H*0.5+(Math.random()-0.5)*H*0.6*(Math.random()); const s=Math.random()*1.5;
+    x.globalAlpha=0.25+Math.random()*0.6; x.fillStyle='#eef3ff'; x.fillRect(Math.random()*W,gy,s,s); }
+  x.globalAlpha=1;
+  const t=new THREE.CanvasTexture(c); t.colorSpace=THREE.SRGBColorSpace; return t;
+}
 let cosmos=null, sunMesh=null, sunGlow=null, planets=[], asteroids=[];
 let comet=null, cometT=0, cometNext=0, cometFrom=new THREE.Vector3(), cometTo=new THREE.Vector3(), cometDur=2600, cometOn=false;
 const COSMOS_TEX = COSMOS ? glowTexture() : null;
@@ -620,17 +639,22 @@ function buildCosmos(){
   cosmos=new THREE.Group(); scene.add(cosmos);
   // dense faint starfield (3 layers) — mostly tiny dim stars, a few brighter; subtle, not glaring
   cosmos.add(makeStars(3000,145,0.42,0.8), makeStars(1500,115,0.6,0.85), makeStars(600,95,0.95,0.9));
-  const sunPos=new THREE.Vector3(70,54,-88);   // distant, upper-back — a quiet sun in the corner
-  sunMesh=new THREE.Mesh(new THREE.SphereGeometry(4.5,32,24), new THREE.MeshBasicMaterial({color:0xffd9a0, fog:false}));
+  // Milky-Way band arcing across the far sky
+  const galaxy=new THREE.Mesh(new THREE.PlaneGeometry(320,140),
+    new THREE.MeshBasicMaterial({map:galaxyTexture(), transparent:true, opacity:0.62, depthWrite:false, blending:THREE.AdditiveBlending, side:THREE.DoubleSide, fog:false}));
+  galaxy.position.set(-8,46,-125); galaxy.rotation.z=0.52; galaxy.rotation.x=-0.12; cosmos.add(galaxy);
+  // sun — a bit closer now, a clear focal accent
+  const sunPos=new THREE.Vector3(46,40,-70);
+  sunMesh=new THREE.Mesh(new THREE.SphereGeometry(6,32,24), new THREE.MeshBasicMaterial({color:0xffd9a0, fog:false}));
   sunMesh.position.copy(sunPos); cosmos.add(sunMesh);
-  sunGlow=new THREE.Sprite(new THREE.SpriteMaterial({map:COSMOS_TEX, color:0xffc070, transparent:true, opacity:0.6, blending:THREE.AdditiveBlending, depthWrite:false, fog:false}));
-  sunGlow.scale.set(30,30,1); sunGlow.position.copy(sunPos); cosmos.add(sunGlow);
-  const corona=new THREE.Sprite(new THREE.SpriteMaterial({map:COSMOS_TEX, color:0xffcaa0, transparent:true, opacity:0.14, blending:THREE.AdditiveBlending, depthWrite:false, fog:false}));
-  corona.scale.set(64,64,1); corona.position.copy(sunPos); cosmos.add(corona);
-  const sunLight=new THREE.PointLight(0xffe0b0, 0.7, 150); sunLight.position.copy(sunPos); cosmos.add(sunLight);
-  // distant planets — muted, lit (not glowing), slow orbits
-  const defs=[{r:22,s:1.2,c:0x5f86b0,sp:0.00010,ph:0},{r:32,s:1.9,c:0xb08068,sp:0.00007,ph:1.6,ring:true},
-              {r:44,s:1.5,c:0x8f7aa6,sp:0.00005,ph:3.3}];
+  sunGlow=new THREE.Sprite(new THREE.SpriteMaterial({map:COSMOS_TEX, color:0xffc070, transparent:true, opacity:0.62, blending:THREE.AdditiveBlending, depthWrite:false, fog:false}));
+  sunGlow.scale.set(42,42,1); sunGlow.position.copy(sunPos); cosmos.add(sunGlow);
+  const corona=new THREE.Sprite(new THREE.SpriteMaterial({map:COSMOS_TEX, color:0xffcaa0, transparent:true, opacity:0.16, blending:THREE.AdditiveBlending, depthWrite:false, fog:false}));
+  corona.scale.set(84,84,1); corona.position.copy(sunPos); cosmos.add(corona);
+  const sunLight=new THREE.PointLight(0xffe0b0, 0.9, 150); sunLight.position.copy(sunPos); cosmos.add(sunLight);
+  // a few closer planets clustered near the sun — muted, lit, slow orbits (stay clear of the arena)
+  const defs=[{r:13,s:1.5,c:0x5f86b0,sp:0.00012,ph:0},{r:21,s:2.6,c:0xc08a64,sp:0.00008,ph:1.7,ring:true},
+              {r:29,s:1.7,c:0x8f7aa6,sp:0.00006,ph:3.4}];
   defs.forEach(d=>{
     const p=new THREE.Mesh(new THREE.SphereGeometry(d.s,24,18),
       new THREE.MeshStandardMaterial({color:d.c, roughness:.95, metalness:.05, emissive:d.c, emissiveIntensity:.03, fog:false}));
