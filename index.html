@@ -13,10 +13,18 @@
     --panel:rgba(16,21,30,.86); --line:rgba(255,255,255,.10);
     --font:'Segoe UI',system-ui,-apple-system,Arial,sans-serif;
   }
-  *{margin:0;padding:0;box-sizing:border-box;}
-  html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);font-family:var(--font);color:var(--ink);-webkit-tap-highlight-color:transparent;user-select:none;}
-  #app{position:fixed;inset:0;}
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;}
+  html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);font-family:var(--font);color:var(--ink);
+    -webkit-tap-highlight-color:transparent;touch-action:none;overscroll-behavior:none;}
+  #app,canvas{position:fixed;inset:0;touch-action:none;}
   canvas{display:block;}
+  /* countdown before the snake starts moving */
+  #countdown{position:fixed;top:42%;left:50%;transform:translate(-50%,-50%);z-index:16;pointer-events:none;
+    font-size:clamp(70px,20vw,150px);font-weight:900;color:var(--cream);opacity:0;
+    text-shadow:0 6px 30px rgba(0,0,0,.6);filter:drop-shadow(0 0 24px rgba(84,214,178,.4));}
+  #countdown.show{animation:cdpop .9s ease-out;}
+  @keyframes cdpop{0%{opacity:0;transform:translate(-50%,-50%) scale(2);}25%{opacity:1;transform:translate(-50%,-50%) scale(1);}
+    80%{opacity:1;}100%{opacity:0;transform:translate(-50%,-50%) scale(.8);}}
 
   /* ---------- HUD ---------- */
   #hud{position:fixed;inset:0;pointer-events:none;z-index:10;}
@@ -67,8 +75,25 @@
     -webkit-background-clip:text;background-clip:text;color:transparent;
     filter:drop-shadow(0 4px 22px rgba(0,0,0,.5));}
   .subtitle{font-size:12px;letter-spacing:5px;color:var(--muted);text-transform:uppercase;margin-top:-8px;}
-  .panel{background:var(--panel);border:1px solid var(--line);border-radius:20px;
-    padding:28px 30px;max-width:440px;box-shadow:0 24px 70px rgba(0,0,0,.55);}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:20px;position:relative;overflow:hidden;
+    padding:30px 30px 26px;max-width:440px;box-shadow:0 24px 70px rgba(0,0,0,.6),inset 0 1px 0 rgba(255,255,255,.06);}
+  /* game-dialog accents: glowing top bar + corner brackets */
+  .panel::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;
+    background:linear-gradient(90deg,transparent,var(--mint) 30%,var(--gold) 70%,transparent);opacity:.85;}
+  .panel::after{content:'';position:absolute;inset:8px;border-radius:14px;pointer-events:none;
+    background:
+      linear-gradient(var(--mint),var(--mint)) left top/14px 2px no-repeat,
+      linear-gradient(var(--mint),var(--mint)) left top/2px 14px no-repeat,
+      linear-gradient(var(--mint),var(--mint)) right top/14px 2px no-repeat,
+      linear-gradient(var(--mint),var(--mint)) right top/2px 14px no-repeat,
+      linear-gradient(var(--gold),var(--gold)) left bottom/14px 2px no-repeat,
+      linear-gradient(var(--gold),var(--gold)) left bottom/2px 14px no-repeat,
+      linear-gradient(var(--gold),var(--gold)) right bottom/14px 2px no-repeat,
+      linear-gradient(var(--gold),var(--gold)) right bottom/2px 14px no-repeat;
+    opacity:.45;}
+  /* dialog pop-in for notification-style overlays */
+  #pause .panel,#gameover .panel,#profile .panel{animation:dlgPop .42s cubic-bezier(.2,1.25,.3,1) both;}
+  @keyframes dlgPop{0%{opacity:0;transform:translateY(18px) scale(.9);}100%{opacity:1;transform:none;}}
   .diff-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin:6px 0 4px;}
   .btn{pointer-events:auto;cursor:pointer;border:1px solid var(--line);
     background:rgba(255,255,255,.035);color:var(--ink);border-radius:13px;padding:14px 10px;
@@ -111,8 +136,11 @@
     100%{opacity:0;transform:translate(-50%,-185%) scale(1.05);}}
 
   /* ---------- INTRO (cinematic) ---------- */
-  #intro{z-index:40;background:radial-gradient(circle at 50% 44%,#0f1b2c 0%,#070a12 60%,#04060b 100%);gap:0;}
+  /* translucent so the live snake demo plays behind the logo */
+  #intro{z-index:40;background:radial-gradient(circle at 50% 42%,rgba(9,15,26,.42) 0%,rgba(6,9,16,.72) 55%,rgba(3,5,10,.92) 100%);gap:0;}
   .intro-stage{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;}
+  .intro-stage::before{content:'';position:absolute;inset:-60px -90px;z-index:-1;
+    background:radial-gradient(ellipse at center,rgba(4,6,12,.82) 0%,rgba(4,6,12,.5) 45%,transparent 72%);}
   .intro-ring{position:absolute;top:50%;left:50%;border:2px solid rgba(84,214,178,.45);border-radius:50%;
     width:240px;height:240px;margin:-120px 0 0 -120px;animation:introRing 2.6s ease-out infinite;}
   .intro-ring.r2{border-color:rgba(231,192,106,.35);animation-delay:.6s;}
@@ -120,7 +148,7 @@
   @keyframes introRing{0%{transform:scale(.35);opacity:0;}25%{opacity:.8;}100%{transform:scale(1.7);opacity:0;}}
   .intro-title{animation:introTitle 1.5s cubic-bezier(.18,1,.3,1) both;}
   @keyframes introTitle{0%{opacity:0;filter:blur(24px);transform:scale(1.7);letter-spacing:36px;}
-    100%{opacity:1;filter:blur(0) drop-shadow(0 4px 22px rgba(0,0,0,.5));transform:scale(1);letter-spacing:7px;}}
+    100%{opacity:1;filter:blur(0) drop-shadow(0 3px 14px rgba(0,0,0,.95)) drop-shadow(0 0 34px rgba(0,0,0,.6));transform:scale(1);letter-spacing:7px;}}
   .intro-sub{animation:fadeUp 1s ease .85s both;}
   .intro-tap{margin-top:30px;font-size:12px;letter-spacing:5px;color:var(--muted);text-transform:uppercase;
     animation:fadeUp 1s ease 1.5s both,blink 1.8s ease 2.1s infinite;}
@@ -207,14 +235,22 @@
   #knob{width:66px;height:66px;border-radius:50%;will-change:transform;transition:transform .04s linear;
     background:radial-gradient(circle at 42% 36%,#b8f3e2,#54d6b2 55%,#2a9c80 100%);
     box-shadow:0 6px 18px rgba(0,0,0,.5),inset 0 2px 4px rgba(255,255,255,.5),0 0 18px rgba(84,214,178,.4);}
-  /* mobile top-left buttons — above the joystick zone so they stay tappable */
-  #mbtns{position:absolute;top:max(14px,env(safe-area-inset-top));left:max(14px,env(safe-area-inset-left));
+  /* mobile top-left buttons — shifted right of the always-visible mute button */
+  #mbtns{position:absolute;top:max(14px,env(safe-area-inset-top));left:calc(max(14px,env(safe-area-inset-left)) + 54px);
     display:flex;gap:10px;pointer-events:none;z-index:14;}
   .mbtn{pointer-events:auto;cursor:pointer;width:46px;height:46px;border-radius:13px;
     background:rgba(16,21,30,.72);border:1px solid var(--line);color:var(--ink);font-size:18px;
     display:flex;align-items:center;justify-content:center;backdrop-filter:blur(10px);touch-action:none;
     box-shadow:0 8px 22px rgba(0,0,0,.4);}
   .mbtn:active{background:rgba(231,192,106,.2);}
+  /* sound toggle — always visible, top-left */
+  #muteBtn{position:fixed;top:max(14px,env(safe-area-inset-top));left:max(14px,env(safe-area-inset-left));
+    width:46px;height:46px;border-radius:13px;z-index:25;cursor:pointer;pointer-events:auto;font-size:19px;
+    background:rgba(16,21,30,.72);border:1px solid var(--line);color:var(--ink);
+    display:flex;align-items:center;justify-content:center;backdrop-filter:blur(10px);
+    box-shadow:0 8px 22px rgba(0,0,0,.4);transition:background .12s;}
+  #muteBtn:hover{background:rgba(84,214,178,.16);}
+  #muteBtn:active{background:rgba(231,192,106,.2);}
 
   /* ---------- RESPONSIVE ---------- */
   @media (max-width:560px){
@@ -261,6 +297,8 @@
 <div id="flash"></div>
 <div id="vignette"></div>
 <div id="popups"></div>
+<div id="countdown"></div>
+<div id="muteBtn">🔊</div>
 
 <!-- WALLET -->
 <div id="wallet">
@@ -459,6 +497,7 @@ S.wallet      = +(localStorage.getItem('ns_wallet')||0);
 S.gamesPlayed = +(localStorage.getItem('ns_games')||0);
 S.lifeFood    = +(localStorage.getItem('ns_food')||0);
 S.bestEvo     = +(localStorage.getItem('ns_evo')||0);   // highest evolution tier reached
+S.muted       = localStorage.getItem('ns_muted')==='1';
 S.runCoins    = 0;
 let walletShown = S.wallet, walletTarget = S.wallet;
 
@@ -610,16 +649,20 @@ function buildArena(){
 const segGeo = new RoundedBoxGeometry(0.86,0.86,0.86, 5, 0.26);   // soft premium pebble
 const segMeshes = [];
 const snakeGroup = new THREE.Group(); scene.add(snakeGroup);
+// Only change UNIFORM VALUES here — never toggle a feature on/off and never set needsUpdate,
+// otherwise Three.js recompiles the shader for every segment at once (the molt lag spike).
 function tuneSegMat(mat, e){
   mat.metalness=e.metalness; mat.roughness=e.roughness; mat.clearcoat=e.clearcoat;
-  mat.sheen=e.sheen; mat.iridescence=e.irid||0; mat.iridescenceIOR=1.3+(e.irid||0)*0.8;
-  mat.needsUpdate=true;
+  mat.sheen=e.sheen; mat.iridescence=Math.max(0.001,e.irid||0); mat.iridescenceIOR=1.3+(e.irid||0)*0.8;
 }
 function segMaterial(){
+  // iridescence/clearcoat/sheen all enabled from the start so the shader program is fixed
+  // (every segment shares the same compiled program → growth & molt cause no recompile)
   const m=new THREE.MeshPhysicalMaterial({
     color:COL.body, emissive:COL.body, emissiveIntensity:0.28,
     roughness:0.30, metalness:0.25, clearcoat:0.7, clearcoatRoughness:0.26,
     envMapIntensity:0.8, sheen:0.4, sheenColor:new THREE.Color(0xfff0d8),
+    iridescence:0.05, iridescenceIOR:1.3,
   });
   if(S.evoMat) tuneSegMat(m, S.evoMat);
   return m;
@@ -688,6 +731,7 @@ function makeRockGeo(){
   g.computeVertexNormals(); return g;
 }
 const rockMat = new THREE.MeshStandardMaterial({color:0x6e665f, roughness:1.0, metalness:0.04, flatShading:true, envMapIntensity:0.25});
+const ROCK_GEOS=[]; for(let i=0;i<6;i++) ROCK_GEOS.push(makeRockGeo());   // pre-baked variants → no per-spawn geometry work
 const ROCK_Y=0.46, ROCK_DROP=13, ROCK_FALL=520;
 
 // shockwave ring pool (pickup feedback)
@@ -721,15 +765,15 @@ const obstMeshes = [];
 const obstGroup = new THREE.Group(); scene.add(obstGroup);
 function syncObstacleMeshes(){
   while(obstMeshes.length < S.obstacles.length){
-    const m=new THREE.Mesh(makeRockGeo(),rockMat); m.scale.setScalar(0.88); m.userData.cell=null;
+    const m=new THREE.Mesh(ROCK_GEOS[obstMeshes.length%ROCK_GEOS.length],rockMat); m.scale.setScalar(0.88); m.userData.cell=null;
     obstGroup.add(m); obstMeshes.push(m);
   }
   for(let i=0;i<obstMeshes.length;i++){
     const vis = i < S.obstacles.length; const m=obstMeshes[i]; m.visible=vis;
     if(vis){ const o=S.obstacles[i]; const p=worldPos(o,ROCK_Y); m.position.x=p.x; m.position.z=p.z;
       const key=o.x+'_'+o.z;
-      if(m.userData.cell!==key){          // fresh ugly shape + random tilt when (re)assigned
-        m.geometry.dispose(); m.geometry=makeRockGeo();
+      if(m.userData.cell!==key){          // reuse a pre-baked variant + random tilt (no per-spawn geometry work)
+        m.geometry=ROCK_GEOS[(Math.random()*ROCK_GEOS.length)|0];
         m.rotation.set(Math.random()*0.6, Math.random()*Math.PI*2, Math.random()*0.6);
         m.userData.cell=key;
       }
@@ -874,7 +918,7 @@ scene.add(dust);
 // ----------------------------- AUDIO (Web Audio synth) -----------------------------
 let actx=null, master=null;
 function audio(){ if(!actx){ try{ actx=new (window.AudioContext||window.webkitAudioContext)();
-  master=actx.createGain(); master.gain.value=0.6; master.connect(actx.destination); }catch(e){} } return actx; }
+  master=actx.createGain(); master.gain.value=S.muted?0:0.6; master.connect(actx.destination); }catch(e){} } return actx; }
 // soft note with gentle attack/release → musical, not harsh
 function note(freq, dur, {type='sine', vol=0.16, delay=0, slideTo=null, detune=0}={}){
   const a=audio(); if(!a) return;
@@ -916,7 +960,59 @@ function sfx(name){
     case 'power':     [659,988,1319].forEach((f,i)=>note(f,0.2,{type:'triangle',vol:0.13,delay:i*0.05})); break;
     // shield absorbs a hit — metallic clang
     case 'shieldBreak': note(440,0.18,{type:'square',vol:0.16,slideTo:180}); note(880,0.12,{type:'sine',vol:0.1}); break;
+    // countdown tick / go
+    case 'cd':        note(660,0.12,{type:'sine',vol:0.12}); break;
+    case 'go':        [784,1047,1319].forEach((f,i)=>note(f,0.22,{type:'triangle',vol:0.15,delay:i*0.05})); break;
   }
+}
+
+// ----------------------------- BACKGROUND MUSIC (ZzFXM by Keith Clark, MIT) -----------------------------
+// zzfx sound generator + ZzFXM music renderer (rendered once into our own AudioContext → respects mute).
+let zzfxR=44100, zzfxV=.25;
+const zzfxG=(q=1,k=.05,c=220,e=0,t=0,u=.1,r=0,F=1,v=0,z=0,w=0,A=0,l=0,B=0,x=0,G=0,d=0,y=1,m=0,C=0)=>{let b=2*Math.PI,H=v*=500*b/zzfxR**2,I=(0<x?1:-1)*b/4,D=c*=(1+2*k*Math.random()-k)*b/zzfxR,Z=[],g=0,E=0,a=0,n=1,J=0,K=0,f=0,p,h;e=99+zzfxR*e;m*=zzfxR;t*=zzfxR;u*=zzfxR;d*=zzfxR;z*=500*b/zzfxR**3;x*=b/zzfxR;w*=b/zzfxR;A*=zzfxR;l=zzfxR*l|0;for(h=e+m+t+u+d|0;a<h;Z[a++]=f)++K%(100*G|0)||(f=r?1<r?2<r?3<r?Math.sin((g%b)**3):Math.max(Math.min(Math.tan(g),1),-1):1-(2*g/b%2+2)%2:1-4*Math.abs(Math.round(g/b)-g/b):Math.sin(g),f=(l?1-C+C*Math.sin(2*Math.PI*a/l):1)*(0<f?1:-1)*Math.abs(f)**F*q*zzfxV*(a<e?a/e:a<e+m?1-(a-e)/m*(1-y):a<e+m+t?y:a<h-d?(h-a-d)/u*y:0),f=d?f/2+(d>a?0:(a<h-d?1:(h-a)/d)*Z[a-d|0]/2):f),p=(c+=v+=z)*Math.sin(E*x-I),g+=p-p*B*(1-1E9*(Math.sin(a)+1)%2),E+=p-p*B*(1-1E9*(Math.sin(a)**2+1)%2),n&&++n>A&&(c+=w,D+=w,n=0),!l||++J%l||(c=D,v=H,n=n||1);return Z};
+const zzfxM=(n,f,t,e=125)=>{let l,o,z,r,g,h,x,a,u,c,d,i,m,p,G,M=0,R=[],b=[],j=[],k=0,q=0,s=1,v={},w=zzfxR/e*60>>2;for(;s;k++)R=[s=a=d=m=0],t.map((e,d)=>{for(x=f[e][k]||[0,0,0],s|=!!f[e][k],G=m+(f[e][0].length-2-!a)*w,p=d==t.length-1,o=2,r=m;o<x.length+p;a=++o){for(g=x[o],u=o==x.length+p-1&&p||c!=(x[0]||0)|g|0,z=0;z<w&&a;z++>w-99&&u?i+=(i<1)/99:0)h=(1-i)*R[M++]/2||0,b[r]=(b[r]||0)-h*q+h,j[r]=(j[r++]||0)+h*q+h;g&&(i=g%1,q=x[1]||0,(g|=0)&&(R=v[[c=x[M=0]||0,g]]=v[[c,g]]||(l=[...n[c]],l[2]*=2**((g-12)/12),g>0?zzfxG(...l):[])))}m=G});return[b,j]};
+
+// our own calm minor-pentatonic loop (instruments, 2 patterns, sequence, BPM) — original, no third-party tune
+const SONG=[
+  [ [.7,0,55,,.12,.3], [.45,0,220,,.04,.16,1,1.4], [.35,0,110,.1,.6,.7,,.5] ],
+  [
+    [
+      [1,0, 24,0,27,0,31,0,27,0, 24,0,22,0,19,0,22,0, 24,0,19,0,17,0,19,0, 15,0,17,0,19,0,22,0],
+      [0,0, 24,0,0,0,0,0,0,0, 22,0,0,0,0,0,0,0, 17,0,0,0,0,0,0,0, 19,0,0,0,0,0,0,0],
+      [2,-1, 12,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, 12,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+      [2,1, 19,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, 19,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+    ],
+    [
+      [1,0, 19,0,22,0,24,0,27,0, 31,0,27,0,24,0,22,0, 24,0,27,0,31,0,34,0, 31,0,27,0,24,0,19,0],
+      [0,0, 17,0,0,0,0,0,0,0, 19,0,0,0,0,0,0,0, 22,0,0,0,0,0,0,0, 24,0,0,0,0,0,0,0],
+      [2,-1, 17,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, 24,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+      [2,1, 24,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, 31,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+    ],
+  ],
+  [0,1],
+  110,
+];
+let musicBus=null, musicSrc=null, songBuf=null;
+function startMusic(){
+  const a=audio(); if(!a || musicSrc) return;
+  try{
+    if(!songBuf){ const ch=zzfxM(...SONG); songBuf=a.createBuffer(2, ch[0].length, zzfxR);
+      songBuf.getChannelData(0).set(ch[0]); songBuf.getChannelData(1).set(ch[1]); }
+    if(!musicBus){ musicBus=a.createGain(); musicBus.gain.value=0.6; musicBus.connect(master); }
+    musicSrc=a.createBufferSource(); musicSrc.buffer=songBuf; musicSrc.loop=true;
+    musicSrc.connect(musicBus); musicSrc.start();
+    updateMusicRate();
+  }catch(e){}
+}
+function updateMusicRate(){
+  if(!musicSrc) return;
+  const r = S.mode==='playing' ? 1 + Math.min(0.3, (S.level-1)*0.03) : 1;   // intensify with level
+  try{ musicSrc.playbackRate.setTargetAtTime(r, audio().currentTime, 0.5); }catch(e){}
+}
+function setMuted(m){
+  S.muted=m; localStorage.setItem('ns_muted', m?'1':'0');
+  if(master) master.gain.value = m?0:0.6;
+  const b=document.getElementById('muteBtn'); if(b) b.textContent = m?'🔇':'🔊';
 }
 
 // ----------------------------- GAME FLOW -----------------------------
@@ -947,7 +1043,14 @@ function startGame(){
   S.gamesPlayed++; localStorage.setItem('ns_games', S.gamesPlayed);
   S.mode='playing';
   hide('menu'); hide('pause'); hide('gameover'); hide('profile');
-  audio(); // unlock on user gesture
+  S.freezeUntil = performance.now() + 5000;   // 5s countdown before the snake moves
+  S.cdNum = null;
+  audio(); startMusic(); // unlock on user gesture
+}
+function setCountdown(text){
+  const el=document.getElementById('countdown');
+  if(!text){ el.classList.remove('show'); el.textContent=''; return; }
+  el.textContent=text; el.classList.remove('show'); void el.offsetWidth; el.classList.add('show');
 }
 const BLOOD=0xb20f1e, BLOOD2=0x7a0b16;
 function gameOver(){
@@ -1015,6 +1118,7 @@ function levelUp(){
   }
   syncObstacleMeshes();
   moltTo(Math.min(S.level-1, EVO.length-1));   // evolve / shed skin
+  updateMusicRate();                            // music intensifies with level
   sfx('levelup');
   flash(0.32);
   showLevelBanner(meteor ? '☄ MƯA THIÊN THẠCH' : null);
@@ -1238,8 +1342,8 @@ function updateVisuals(dt, now){
       powRing.rotation.z = now*0.004;
       powRingMat.emissive.setHex(S.powerup.type.color);
       powRingMat.emissiveIntensity = 0.7 + Math.abs(Math.sin(now*0.01))*0.5;
-      powSprite.material.map = powTexCache[S.powerup.type.emoji] || null;
-      powSprite.material.needsUpdate = true;
+      const ptex = powTexCache[S.powerup.type.emoji] || null;
+      if(powSprite.material.map !== ptex){ powSprite.material.map = ptex; powSprite.material.needsUpdate = true; }
       itemLight.color.setHex(S.powerup.type.color); itemLight.position.set(p.x,0.9,p.z);
       itemLight.intensity = Math.max(itemLight.intensity, 1.0+Math.abs(Math.sin(now*0.01))*0.4);
     }
@@ -1395,15 +1499,19 @@ document.querySelectorAll('[data-diff]').forEach(b=>b.addEventListener('click',(
 document.getElementById('startBtn').onclick=startGame;
 document.getElementById('resumeBtn').onclick=togglePause;
 document.getElementById('pauseRestart').onclick=startGame;
-document.getElementById('pauseMenu').onclick=()=>{ S.mode='menu'; hide('pause'); show('menu'); };
+document.getElementById('pauseMenu').onclick=()=>{ S.mode='menu'; startDemo(); hide('pause'); show('menu'); };
 document.getElementById('retryBtn').onclick=startGame;
-document.getElementById('goMenu').onclick=()=>{ S.mode='menu'; hide('gameover'); show('menu'); };
+document.getElementById('goMenu').onclick=()=>{ S.mode='menu'; startDemo(); hide('gameover'); show('menu'); };
 document.getElementById('profileBtn').onclick=openProfile;
 document.getElementById('profClose').onclick=()=>{ hide('profile'); show('menu'); };
+// sound on/off
+const muteBtn=document.getElementById('muteBtn');
+muteBtn.textContent = S.muted?'🔇':'🔊';
+muteBtn.addEventListener('pointerdown', e=>{ e.preventDefault(); e.stopPropagation(); audio(); startMusic(); setMuted(!S.muted); });
 
 // ----------------------------- INTRO → MENU -----------------------------
 let introDone=false;
-function dismissIntro(){ if(introDone) return; introDone=true; audio(); sfx('start');
+function dismissIntro(){ if(introDone) return; introDone=true; audio(); startMusic(); sfx('start');
   const i=document.getElementById('intro'); i.style.opacity=0;
   setTimeout(()=>{ hide('intro'); S.mode='menu'; show('menu'); }, 380); }
 ['click','pointerdown','touchstart'].forEach(ev=>document.getElementById('intro').addEventListener(ev,dismissIntro,{passive:true}));
@@ -1418,19 +1526,12 @@ if(isTouch) document.body.classList.add('touch');
 const joypad=document.getElementById('joypad');
 const joy=document.getElementById('joystick');
 const knob=document.getElementById('knob');
-const JOY_R=48, JOY_DEAD=12;
+const JOY_R=48, JOY_DEAD=11;
 let joyId=null, lastJoyDir='';
 function joyCenter(){ const r=joy.getBoundingClientRect(); return {cx:r.left+r.width/2, cy:r.top+r.height/2}; }
-function joyStart(e){
-  if(joyId!==null) return;
-  joyId=e.pointerId; joy.classList.add('act'); audio();
-  try{ joypad.setPointerCapture(e.pointerId); }catch(_){}
-  joyMove(e); e.preventDefault();
-}
-function joyMove(e){
-  if(joyId!==e.pointerId) return;
+function joyApply(clientX, clientY){
   const {cx,cy}=joyCenter();
-  const dx=e.clientX-cx, dy=e.clientY-cy;
+  const dx=clientX-cx, dy=clientY-cy;
   const mag=Math.hypot(dx,dy)||1, cl=Math.min(mag,JOY_R), ang=Math.atan2(dy,dx);
   knob.style.transform=`translate(${Math.cos(ang)*cl}px,${Math.sin(ang)*cl}px)`;
   if(mag>JOY_DEAD){
@@ -1439,31 +1540,54 @@ function joyMove(e){
     else { setDir(0,dy>0?1:-1); nd=dy>0?'D':'U'; }
     if(nd!==lastJoyDir){ lastJoyDir=nd; if(navigator.vibrate) navigator.vibrate(6); }
   }
+}
+function joyStart(e){
+  if(joyId!==null) return;
+  joyId = (e.pointerId!=null) ? e.pointerId : 'm';
+  joy.classList.add('act'); audio();
+  joyApply(e.clientX, e.clientY);            // steer immediately on first touch (no capture quirks)
   e.preventDefault();
 }
-function joyEnd(e){
-  if(joyId!==e.pointerId) return;
-  joyId=null; lastJoyDir=''; joy.classList.remove('act');
-  knob.style.transform='translate(0,0)';   // recenter; snake keeps last heading
+function joyMove(e){
+  if(joyId===null) return;
+  if(e.pointerId!=null && e.pointerId!==joyId) return;
+  joyApply(e.clientX, e.clientY);
+  if(e.cancelable) e.preventDefault();
 }
+function joyEnd(e){
+  if(joyId===null) return;
+  if(e && e.pointerId!=null && e.pointerId!==joyId) return;
+  joyId=null; lastJoyDir=''; joy.classList.remove('act');
+  knob.style.transform='translate(0,0)';     // recenter; snake keeps last heading
+}
+// only the joypad starts a drag; the WINDOW tracks move/end so re-touch & drag-out are reliable
 joypad.addEventListener('pointerdown', joyStart);
-joypad.addEventListener('pointermove', joyMove);
-joypad.addEventListener('pointerup', joyEnd);
-joypad.addEventListener('pointercancel', joyEnd);
+window.addEventListener('pointermove', joyMove, {passive:false});
+window.addEventListener('pointerup', joyEnd);
+window.addEventListener('pointercancel', joyEnd);
+window.addEventListener('blur', ()=>joyEnd());
 
 const stop=e=>{e.preventDefault();e.stopPropagation();};
 document.getElementById('mPause').addEventListener('pointerdown',e=>{stop(e);
   if(S.mode==='playing'||S.mode==='paused') togglePause();});
+
+// --- KILL all stray touch/selection on the arena; only joystick + buttons + overlays respond ---
+const INTERACTIVE='#joypad,#joystick,#knob,#mbtns,.mbtn,#muteBtn,.overlay,.btn,#wallet';
+function touchGuard(e){
+  const t=e.target;
+  if(t && t.closest && t.closest(INTERACTIVE)) return;   // let real controls work
+  if(e.cancelable) e.preventDefault();                   // block selection / scroll / double-tap-zoom / synth-click
+}
+document.addEventListener('touchstart', touchGuard, {passive:false});
+document.addEventListener('touchmove', touchGuard, {passive:false});
+document.addEventListener('selectstart', e=>e.preventDefault());
+document.addEventListener('contextmenu', e=>e.preventDefault());
+document.addEventListener('gesturestart', e=>{ e.preventDefault(); });
 document.getElementById('mRestart').addEventListener('pointerdown',e=>{stop(e); startGame();});
 
 // ----------------------------- IDLE MENU SCENE -----------------------------
-// show a slow idle snake behind menu for vibe
-computeDims();
-buildArena();
-{ const mx=Math.floor(S.cols/2), mz=Math.floor(S.rows/2);
-  S.snake=[{x:mx,z:mz},{x:mx-1,z:mz},{x:mx-2,z:mz}]; S.prevSnake=S.snake.map(c=>({...c})); }
-ensureSegMeshes(3); spawnFood();
-applyEvo(0);      // menu snake starts at tier 0
+// self-playing snake demo behind the intro/menu
+startDemo();
 document.getElementById('ui-best').textContent=S.best;
 renderWallet();
 S.mode='intro';   // start on the cinematic intro
@@ -1475,15 +1599,23 @@ function loop(now){
   const dt=Math.min(0.05,(now-last)/1000); last=now;
 
   if(S.mode==='playing'){
-    S.accumulator += dt*1000;
-    const effTick = S.tick * (now < S.slowUntil ? 1.7 : 1);   // slow-mo power-up
-    S.effTick = effTick;
-    let guard=0;
-    while(S.accumulator >= effTick && S.mode==='playing' && guard<5){ S.accumulator-=effTick; tickStep(); guard++; }
+    if(S.freezeUntil && now < S.freezeUntil){
+      // countdown: snake stays still so the start isn't sudden
+      S.accumulator = 0;
+      const rem = Math.ceil((S.freezeUntil - now)/1000);
+      if(rem !== S.cdNum){ S.cdNum = rem; setCountdown(String(rem)); sfx('cd'); }
+    } else {
+      if(S.freezeUntil){ S.freezeUntil = 0; setCountdown('ĐI!'); sfx('go'); setTimeout(()=>setCountdown(''), 650); }
+      S.accumulator += dt*1000;
+      const effTick = S.tick * (now < S.slowUntil ? 1.7 : 1);   // slow-mo power-up
+      S.effTick = effTick;
+      let guard=0;
+      while(S.accumulator >= effTick && S.mode==='playing' && guard<5){ S.accumulator-=effTick; tickStep(); guard++; }
+    }
   } else if(S.mode==='menu'||S.mode==='intro'){
-    // idle drift for the living backdrop
+    // attract mode: the demo snake hunts & eats behind the overlay
     S.accumulator += dt*1000;
-    if(S.accumulator>320){ S.accumulator=0; idleDrift(); }
+    if(S.accumulator>190){ S.accumulator=0; demoStep(); }
   }
 
   // fit the RECTANGULAR arena (cols × rows) — fills the screen, taller on portrait
@@ -1536,16 +1668,49 @@ function loop(now){
   updateVisuals(dt, now);
   composer.render();
 }
-function idleDrift(){
-  // wander the idle snake harmlessly
-  const dirs=[{x:1,z:0},{x:-1,z:0},{x:0,z:1},{x:0,z:-1}];
-  const h=S.snake[0]; let d=S.dir;
-  const nx=h.x+d.x, nz=h.z+d.z;
-  if(nx<2||nz<2||nx>S.cols-2||nz>S.rows-2||Math.random()<0.2){ d=dirs[(Math.random()*4)|0]; S.dir=d; }
+// ATTRACT MODE: a self-playing snake that hunts & eats food behind the intro/menu
+function startDemo(){
+  computeDims(); buildArena();
+  const mx=Math.floor(S.cols/2), mz=Math.floor(S.rows/2);
+  S.snake=[{x:mx,z:mz},{x:mx-1,z:mz},{x:mx-2,z:mz}]; S.prevSnake=S.snake.map(c=>({...c}));
+  S.dir={x:1,z:0}; S.demoEaten=0; S.accumulator=0;
+  ensureSegMeshes(3); applyEvo(0); spawnFood();
+  snakeGroup.visible=true; headDeco.visible=true; S.debris=null;
+  for(const m of segMeshes){ m.material.opacity=1; m.material.transparent=false; m.scale.setScalar(1); m.rotation.set(0,0,0); }
+}
+function demoStep(){
+  const h=S.snake[0];
+  const opts=[{x:1,z:0},{x:-1,z:0},{x:0,z:1},{x:0,z:-1}];
+  let best=null, bestScore=1e9;
+  for(const d of opts){
+    if(d.x===-S.dir.x && d.z===-S.dir.z) continue;                 // no reverse
+    const nx=h.x+d.x, nz=h.z+d.z;
+    if(nx<1||nz<1||nx>=S.cols-1||nz>=S.rows-1) continue;           // keep off the rail
+    if(S.snake.some((c,i)=>i<S.snake.length-1 && c.x===nx&&c.z===nz)) continue;  // avoid body
+    let sc = S.food ? Math.abs(nx-S.food.x)+Math.abs(nz-S.food.z) : Math.random();
+    sc += Math.random()*0.7;                                       // slight wander, less robotic
+    if(sc<bestScore){ bestScore=sc; best=d; }
+  }
+  if(!best){ for(const d of opts){ const nx=h.x+d.x,nz=h.z+d.z; if(nx>=1&&nz>=1&&nx<S.cols-1&&nz<S.rows-1){best=d;break;} } }
+  if(!best) return startDemo();                                    // boxed in → reset demo
+  S.dir=best;
   S.prevSnake=S.snake.map(c=>({...c}));
-  const head={x:Math.max(1,Math.min(S.cols-2,h.x+S.dir.x)),z:Math.max(1,Math.min(S.rows-2,h.z+S.dir.z))};
-  S.snake.unshift(head); S.snake.pop();
+  const nx=h.x+S.dir.x, nz=h.z+S.dir.z;
+  S.snake.unshift({x:nx,z:nz});
+  if(S.food && S.food.x===nx && S.food.z===nz){
+    burst(worldPos(S.snake[0],0.45), COL.food2, 22, 1.0);
+    shockwave(worldPos(S.snake[0],0), COL.food2);
+    floatPop('+', worldPos(S.snake[0],0.7), '#f0a878', 0.9);
+    if(!S.muted) sfx('eat');
+    spawnFood();
+    S.demoEaten++;
+    if(S.snake.length>16) S.snake.pop();                           // cap demo length
+    if(S.demoEaten%3===0) applyEvo(((S.evo||0)+1)%EVO.length);     // cycle biome/skin for flair
+  } else {
+    S.snake.pop();
+  }
   while(S.prevSnake.length<S.snake.length) S.prevSnake.push({...S.prevSnake[S.prevSnake.length-1]});
+  ensureSegMeshes(S.snake.length);
 }
 
 addEventListener('resize',()=>{
