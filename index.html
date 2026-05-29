@@ -602,76 +602,81 @@ function glowTexture(){
 let cosmos=null, sunMesh=null, sunGlow=null, planets=[], asteroids=[];
 let comet=null, cometT=0, cometNext=0, cometFrom=new THREE.Vector3(), cometTo=new THREE.Vector3(), cometDur=2600, cometOn=false;
 const COSMOS_TEX = COSMOS ? glowTexture() : null;
-function makeStars(count, radius, size){
+function makeStars(count, radius, size, op){
   const g=new THREE.BufferGeometry(), pos=new Float32Array(count*3), col=new Float32Array(count*3), c=new THREE.Color();
   for(let i=0;i<count;i++){
     const th=Math.random()*Math.PI*2, ph=Math.acos(2*Math.random()-1), r=radius*(0.7+Math.random()*0.3);
     pos[i*3]=r*Math.sin(ph)*Math.cos(th); pos[i*3+1]=r*Math.cos(ph); pos[i*3+2]=r*Math.sin(ph)*Math.sin(th);
-    const t=Math.random(); c.setHSL(t<.72?0.6:(t<.88?0.08:0.52), 0.45, 0.72+Math.random()*0.28); c.toArray(col,i*3);
+    // realistic brightness spread: most stars faint, few bright; subtle blue/white/amber tints
+    const t=Math.random(), hue=t<.74?0.6:(t<.9?0.08:0.55), L=0.22+Math.pow(Math.random(),2.2)*0.62;
+    c.setHSL(hue, 0.25, L); c.toArray(col,i*3);
   }
   g.setAttribute('position',new THREE.BufferAttribute(pos,3)); g.setAttribute('color',new THREE.BufferAttribute(col,3));
-  return new THREE.Points(g, new THREE.PointsMaterial({size, map:COSMOS_TEX, vertexColors:true, transparent:true,
+  return new THREE.Points(g, new THREE.PointsMaterial({size, map:COSMOS_TEX, vertexColors:true, transparent:true, opacity:op||0.85,
     depthWrite:false, blending:THREE.AdditiveBlending, fog:false, sizeAttenuation:true}));
 }
 function buildCosmos(){
   if(!COSMOS || cosmos) return;
   cosmos=new THREE.Group(); scene.add(cosmos);
-  cosmos.add(makeStars(2400,135,0.7), makeStars(1100,95,1.1));            // twinkling starfields
-  const sunPos=new THREE.Vector3(62,52,-82);   // upper-back, in view; planets orbit here (clear of the arena)
-  sunMesh=new THREE.Mesh(new THREE.SphereGeometry(7,32,24), new THREE.MeshBasicMaterial({color:0xffd986, fog:false}));
+  // dense faint starfield (3 layers) — mostly tiny dim stars, a few brighter; subtle, not glaring
+  cosmos.add(makeStars(3000,145,0.42,0.8), makeStars(1500,115,0.6,0.85), makeStars(600,95,0.95,0.9));
+  const sunPos=new THREE.Vector3(70,54,-88);   // distant, upper-back — a quiet sun in the corner
+  sunMesh=new THREE.Mesh(new THREE.SphereGeometry(4.5,32,24), new THREE.MeshBasicMaterial({color:0xffd9a0, fog:false}));
   sunMesh.position.copy(sunPos); cosmos.add(sunMesh);
-  sunGlow=new THREE.Sprite(new THREE.SpriteMaterial({map:COSMOS_TEX, color:0xffb24d, transparent:true, blending:THREE.AdditiveBlending, depthWrite:false, fog:false}));
-  sunGlow.scale.set(54,54,1); sunGlow.position.copy(sunPos); cosmos.add(sunGlow);
-  const sunLight=new THREE.PointLight(0xffe0b0, 1.4, 135); sunLight.position.copy(sunPos); cosmos.add(sunLight);
-  // planets orbiting the sun
-  const defs=[{r:17,s:1.6,c:0x6fa8ff,sp:0.00020,ph:0},{r:25,s:2.6,c:0xff8a6b,sp:0.00013,ph:1.6,ring:true},
-              {r:34,s:1.3,c:0xc6a0ff,sp:0.00009,ph:3.1},{r:45,s:3.2,c:0x7affd0,sp:0.00006,ph:4.6}];
+  sunGlow=new THREE.Sprite(new THREE.SpriteMaterial({map:COSMOS_TEX, color:0xffc070, transparent:true, opacity:0.6, blending:THREE.AdditiveBlending, depthWrite:false, fog:false}));
+  sunGlow.scale.set(30,30,1); sunGlow.position.copy(sunPos); cosmos.add(sunGlow);
+  const corona=new THREE.Sprite(new THREE.SpriteMaterial({map:COSMOS_TEX, color:0xffcaa0, transparent:true, opacity:0.14, blending:THREE.AdditiveBlending, depthWrite:false, fog:false}));
+  corona.scale.set(64,64,1); corona.position.copy(sunPos); cosmos.add(corona);
+  const sunLight=new THREE.PointLight(0xffe0b0, 0.7, 150); sunLight.position.copy(sunPos); cosmos.add(sunLight);
+  // distant planets — muted, lit (not glowing), slow orbits
+  const defs=[{r:22,s:1.2,c:0x5f86b0,sp:0.00010,ph:0},{r:32,s:1.9,c:0xb08068,sp:0.00007,ph:1.6,ring:true},
+              {r:44,s:1.5,c:0x8f7aa6,sp:0.00005,ph:3.3}];
   defs.forEach(d=>{
     const p=new THREE.Mesh(new THREE.SphereGeometry(d.s,24,18),
-      new THREE.MeshStandardMaterial({color:d.c, roughness:.85, metalness:.15, emissive:d.c, emissiveIntensity:.12, fog:false}));
+      new THREE.MeshStandardMaterial({color:d.c, roughness:.95, metalness:.05, emissive:d.c, emissiveIntensity:.03, fog:false}));
     const grp=new THREE.Group(); grp.position.copy(sunPos); p.position.x=d.r; grp.add(p);
-    if(d.ring){ const ring=new THREE.Mesh(new THREE.RingGeometry(d.s*1.5,d.s*2.3,40),
-      new THREE.MeshBasicMaterial({color:0xffe0a8, side:THREE.DoubleSide, transparent:true, opacity:.45, fog:false}));
+    if(d.ring){ const ring=new THREE.Mesh(new THREE.RingGeometry(d.s*1.5,d.s*2.2,40),
+      new THREE.MeshBasicMaterial({color:0xcdb48a, side:THREE.DoubleSide, transparent:true, opacity:.28, fog:false}));
       ring.rotation.x=-Math.PI/2.4; p.add(ring); }
     cosmos.add(grp); planets.push({grp, sp:d.sp, ph:d.ph});
   });
-  // asteroid belt drifting in the void
-  for(let i=0;i<14;i++){
-    const a=new THREE.Mesh(ROCK_GEOS[i%ROCK_GEOS.length], new THREE.MeshStandardMaterial({color:0x5a564f, roughness:1, metalness:.05, flatShading:true, fog:false}));
-    const ang=Math.random()*6.28, rr=58+Math.random()*48;
-    a.position.set(Math.cos(ang)*rr, -6+Math.random()*46, -36-Math.random()*70);
-    a.scale.setScalar(0.6+Math.random()*1.6);
-    a.userData={rx:(Math.random()-.5)*0.5, ry:(Math.random()-.5)*0.5, dz:(Math.random()-.5)*0.6};
+  // sparse asteroid belt drifting slowly in the void
+  for(let i=0;i<10;i++){
+    const a=new THREE.Mesh(ROCK_GEOS[i%ROCK_GEOS.length], new THREE.MeshStandardMaterial({color:0x4a463f, roughness:1, metalness:.05, flatShading:true, fog:false}));
+    const ang=Math.random()*6.28, rr=62+Math.random()*46;
+    a.position.set(Math.cos(ang)*rr, -8+Math.random()*44, -42-Math.random()*66);
+    a.scale.setScalar(0.45+Math.random()*1.0);
+    a.userData={rx:(Math.random()-.5)*0.35, ry:(Math.random()-.5)*0.35, dz:(Math.random()-.5)*0.35};
     cosmos.add(a); asteroids.push(a);
   }
-  // comet (hidden until launched)
-  comet=new THREE.Sprite(new THREE.SpriteMaterial({map:COSMOS_TEX, color:0xcfe8ff, transparent:true, blending:THREE.AdditiveBlending, depthWrite:false, fog:false}));
-  comet.scale.set(5,5,1); comet.visible=false; cosmos.add(comet);
-  cometNext=performance.now()+4000;
+  // comet (hidden until launched) — rare & soft
+  comet=new THREE.Sprite(new THREE.SpriteMaterial({map:COSMOS_TEX, color:0xaecbe6, transparent:true, blending:THREE.AdditiveBlending, depthWrite:false, fog:false}));
+  comet.scale.set(3.6,3.6,1); comet.visible=false; cosmos.add(comet);
+  cometNext=performance.now()+12000;
 }
 function launchComet(now){
   cometOn=true; cometT=0; comet.visible=true;
   const side=Math.random()<0.5?-1:1;
-  cometFrom.set(side*(95+Math.random()*25), 30+Math.random()*35, -45-Math.random()*55);
-  cometTo.set(-side*(95+Math.random()*25), 5+Math.random()*30, -55-Math.random()*55);
-  cometDur=2200+Math.random()*1200;
+  cometFrom.set(side*(95+Math.random()*25), 32+Math.random()*32, -48-Math.random()*55);
+  cometTo.set(-side*(95+Math.random()*25), 8+Math.random()*28, -58-Math.random()*55);
+  cometDur=3400+Math.random()*1800;                                   // slower, calmer streak
 }
 function updateCosmos(now, dt){
   if(!COSMOS || !cosmos) return;
-  cosmos.rotation.y = now*0.000012;                                   // whole sky drifts very slowly
-  if(sunGlow){ const p=1+Math.sin(now*0.0015)*0.06; sunGlow.scale.set(54*p,54*p,1); }
-  for(const pl of planets) pl.grp.rotation.y = pl.ph + now*pl.sp;     // planets revolve around the sun
+  cosmos.rotation.y = now*0.00001;                                    // whole sky drifts very slowly
+  if(sunGlow){ const p=1+Math.sin(now*0.0012)*0.05; sunGlow.scale.set(30*p,30*p,1); }
+  for(const pl of planets) pl.grp.rotation.y = pl.ph + now*pl.sp;     // planets revolve around the sun (slow)
   for(const a of asteroids){ a.rotation.x+=a.userData.rx*dt; a.rotation.y+=a.userData.ry*dt; a.position.z+=a.userData.dz*dt;
-    if(a.position.z>20) a.position.z=-110; if(a.position.z<-115) a.position.z=15; }
-  // comets streak by every so often
+    if(a.position.z>20) a.position.z=-112; if(a.position.z<-115) a.position.z=15; }
+  // a rare, soft comet now and then (background accent only)
   if(!cometOn && now>cometNext){ launchComet(now); }
   if(cometOn){
     cometT += dt*1000;
     const k=Math.min(1,cometT/cometDur);
     comet.position.lerpVectors(cometFrom, cometTo, k);
-    comet.material.opacity = Math.sin(k*Math.PI);                     // fade in/out
-    if(now%2<1) burst(comet.position, 0xbfe0ff, 1, 0.4);              // glowing tail
-    if(k>=1){ cometOn=false; comet.visible=false; cometNext=now+7000+Math.random()*10000; }
+    comet.material.opacity = Math.sin(k*Math.PI)*0.55;               // softer
+    if(Math.floor(now/40)%2===0) burst(comet.position, 0x9fc4e8, 1, 0.3);   // faint tail
+    if(k>=1){ cometOn=false; comet.visible=false; cometNext=now+18000+Math.random()*16000; }
   }
 }
 
@@ -689,7 +694,7 @@ function applyBiomeNow(){
   if(floorTintMat) floorTintMat.color.copy(_floorC);
   if(gridMatRef) gridMatRef.color.copy(_gridC);
   if(edgeMatRef) edgeMatRef.emissive.copy(_accC);
-  nebula.material.color.copy(_bg).lerp(new THREE.Color(0x4a5e7a),0.55);
+  nebula.material.color.copy(_bg).lerp(new THREE.Color(0x33425a),0.38);
   biomeLight.color.copy(_accC).lerp(new THREE.Color(0x223040),0.5);
 }
 function updateBiome(dt){
@@ -700,7 +705,7 @@ function updateBiome(dt){
   if(floorTintMat) floorTintMat.color.lerp(_floorC,0.08);
   if(gridMatRef) gridMatRef.color.lerp(_gridC,0.08);
   if(edgeMatRef) edgeMatRef.emissive.lerp(_accC,0.08);
-  const nt=_bg.clone().lerp(new THREE.Color(0x4a5e7a),0.55);
+  const nt=_bg.clone().lerp(new THREE.Color(0x33425a),0.38);
   nebula.material.color.lerp(nt,0.08);
   const bl=_accC.clone().lerp(new THREE.Color(0x223040),0.5);
   biomeLight.color.lerp(bl,0.08);
