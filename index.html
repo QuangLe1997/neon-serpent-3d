@@ -181,22 +181,26 @@
   /* ---------- MOBILE CONTROLS ---------- */
   #touch{position:fixed;inset:0;z-index:12;display:none;pointer-events:none;}
   body.touch #touch{display:block;}
-  /* D-pad bottom-right */
-  #dpad{position:absolute;right:max(20px,env(safe-area-inset-right));bottom:max(34px,env(safe-area-inset-bottom));
-    width:222px;height:222px;pointer-events:none;
-    background:radial-gradient(circle,rgba(84,214,178,.05),transparent 68%);}
-  .dbtn{position:absolute;width:70px;height:70px;pointer-events:auto;cursor:pointer;
-    display:flex;align-items:center;justify-content:center;
-    background:rgba(16,21,30,.7);border:1.5px solid rgba(84,214,178,.34);border-radius:20px;
-    color:var(--mint);font-size:26px;backdrop-filter:blur(12px);
-    box-shadow:0 10px 26px rgba(0,0,0,.45);transition:background .07s,transform .07s,box-shadow .07s;
-    touch-action:none;-webkit-user-select:none;user-select:none;}
-  .dbtn:active,.dbtn.act{background:rgba(84,214,178,.32);transform:scale(.88);border-color:var(--mint);
-    box-shadow:0 0 24px rgba(84,214,178,.45);}
-  #d-up{top:0;left:76px;} #d-down{bottom:0;left:76px;} #d-left{left:0;top:76px;} #d-right{right:0;top:76px;}
-  /* mobile top-left buttons */
+  /* DYNAMIC floating JOYSTICK — spawns where the thumb touches; arena ignores all input */
+  #joyzone{position:absolute;inset:0;pointer-events:auto;touch-action:none;z-index:12;}
+  #joystick{position:absolute;width:150px;height:150px;margin:-75px 0 0 -75px;border-radius:50%;
+    pointer-events:none;opacity:0;transition:opacity .12s;z-index:13;
+    background:radial-gradient(circle at 50% 45%,rgba(84,214,178,.12),rgba(16,21,30,.5) 70%);
+    border:2px solid rgba(84,214,178,.34);backdrop-filter:blur(8px);
+    box-shadow:0 12px 32px rgba(0,0,0,.45),inset 0 0 28px rgba(84,214,178,.06);
+    display:flex;align-items:center;justify-content:center;}
+  #joystick.show{opacity:1;}
+  #joystick .ring{position:absolute;inset:14px;border-radius:50%;border:1px dashed rgba(84,214,178,.18);}
+  #joystick .arrows{position:absolute;inset:0;color:rgba(132,230,205,.5);font-size:13px;}
+  #joystick .arrows span{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);}
+  #joystick .arrows .u{top:11px;} #joystick .arrows .d{top:auto;bottom:11px;}
+  #joystick .arrows .l{left:13px;} #joystick .arrows .r{left:auto;right:13px;}
+  #knob{width:64px;height:64px;border-radius:50%;will-change:transform;
+    background:radial-gradient(circle at 42% 36%,#b8f3e2,#54d6b2 55%,#2a9c80 100%);
+    box-shadow:0 6px 18px rgba(0,0,0,.5),inset 0 2px 4px rgba(255,255,255,.5),0 0 18px rgba(84,214,178,.4);}
+  /* mobile top-left buttons — above the joystick zone so they stay tappable */
   #mbtns{position:absolute;top:max(14px,env(safe-area-inset-top));left:max(14px,env(safe-area-inset-left));
-    display:flex;gap:10px;pointer-events:none;}
+    display:flex;gap:10px;pointer-events:none;z-index:14;}
   .mbtn{pointer-events:auto;cursor:pointer;width:46px;height:46px;border-radius:13px;
     background:rgba(16,21,30,.72);border:1px solid var(--line);color:var(--ink);font-size:18px;
     display:flex;align-items:center;justify-content:center;backdrop-filter:blur(10px);touch-action:none;
@@ -223,8 +227,7 @@
     #wallet{top:max(10px,env(safe-area-inset-top));right:max(10px,env(safe-area-inset-right));padding:7px 12px 7px 9px;}
     .wval{font-size:16px;} .coinico{width:20px;height:20px;font-size:10px;} .wlabel{display:none;}
   }
-  @media (max-width:380px){ #dpad{width:198px;height:198px;} .dbtn{width:62px;height:62px;}
-    #d-up,#d-down{left:68px;} #d-left,#d-right{top:68px;} }
+  @media (max-width:380px){ #joystick{width:132px;height:132px;margin:-66px 0 0 -66px;} #knob{width:56px;height:56px;} }
 </style>
 </head>
 <body>
@@ -262,11 +265,11 @@
     <div class="mbtn" id="mPause">⏸</div>
     <div class="mbtn" id="mRestart">↻</div>
   </div>
-  <div id="dpad">
-    <div class="dbtn" id="d-up"    data-dx="0"  data-dz="-1">▲</div>
-    <div class="dbtn" id="d-left"  data-dx="-1" data-dz="0">◀</div>
-    <div class="dbtn" id="d-right" data-dx="1"  data-dz="0">▶</div>
-    <div class="dbtn" id="d-down"  data-dx="0"  data-dz="1">▼</div>
+  <div id="joyzone"></div>
+  <div id="joystick">
+    <div class="ring"></div>
+    <div class="arrows"><span class="u">▲</span><span class="d">▼</span><span class="l">◀</span><span class="r">▶</span></div>
+    <div id="knob"></div>
   </div>
 </div>
 
@@ -1171,14 +1174,7 @@ addEventListener('keydown', e=>{
   else if(k===' '){ e.preventDefault(); togglePause(); }
   else if(k==='r'){ if(S.mode==='playing'||S.mode==='paused'||S.mode==='gameover') startGame(); }
 });
-// touch swipe
-let tsx=0,tsy=0;
-addEventListener('touchstart',e=>{ const t=e.touches[0]; tsx=t.clientX; tsy=t.clientY; },{passive:true});
-addEventListener('touchend',e=>{
-  const t=e.changedTouches[0]; const dx=t.clientX-tsx, dy=t.clientY-tsy;
-  if(Math.abs(dx)<24&&Math.abs(dy)<24) return;
-  if(Math.abs(dx)>Math.abs(dy)) setDir(dx>0?1:-1,0); else setDir(0,dy>0?1:-1);
-},{passive:true});
+// (arena touch/swipe intentionally DISABLED — only the joystick + menu receive input)
 
 function togglePause(){
   if(S.mode==='playing'){ S.mode='paused'; show('pause'); }
@@ -1211,15 +1207,52 @@ setTimeout(dismissIntro, 6500);   // auto-advance if idle
 // ----------------------------- MOBILE CONTROLS -----------------------------
 const isTouch = ('ontouchstart' in window) || navigator.maxTouchPoints>0;
 if(isTouch) document.body.classList.add('touch');
-document.querySelectorAll('.dbtn').forEach(b=>{
-  const fire=e=>{ e.preventDefault(); audio();
-    setDir(+b.dataset.dx, +b.dataset.dz);
-    b.classList.add('act'); setTimeout(()=>b.classList.remove('act'),110);
-    if(navigator.vibrate) navigator.vibrate(8);
-  };
-  b.addEventListener('pointerdown', fire);
-  b.addEventListener('touchstart', fire, {passive:false}); // fallback for older mobile
-});
+
+// --- DYNAMIC FLOATING JOYSTICK: spawns at the touch point, drag to steer 4 ways ---
+const joyzone=document.getElementById('joyzone');
+const joy=document.getElementById('joystick');
+const knob=document.getElementById('knob');
+const JOY_R=46, JOY_DEAD=14;
+let joyId=null, ox=0, oy=0, lastJoyDir='';
+function joyStart(e){
+  if(joyId!==null || S.mode!=='playing') return;
+  if(e.target.closest && (e.target.closest('#mbtns') || e.target.closest('#wallet'))) return; // let buttons work
+  joyId=e.pointerId; ox=e.clientX; oy=e.clientY;
+  joy.style.left=ox+'px'; joy.style.top=oy+'px'; joy.classList.add('show');
+  knob.style.transform='translate(0,0)';
+  try{ joyzone.setPointerCapture(e.pointerId); }catch(_){}
+  audio(); e.preventDefault();
+}
+function joyMove(e){
+  if(joyId!==e.pointerId) return;
+  let dx=e.clientX-ox, dy=e.clientY-oy;
+  let mag=Math.hypot(dx,dy)||1;
+  if(mag>JOY_R){
+    // base trails the thumb: relocate it to stay under the finger (convenient follow)
+    ox = e.clientX - dx/mag*JOY_R;
+    oy = e.clientY - dy/mag*JOY_R;
+    joy.style.left=ox+'px'; joy.style.top=oy+'px';
+    dx=e.clientX-ox; dy=e.clientY-oy; mag=JOY_R;
+  }
+  const ang=Math.atan2(dy,dx), cl=Math.min(mag,JOY_R);
+  knob.style.transform=`translate(${Math.cos(ang)*cl}px,${Math.sin(ang)*cl}px)`;
+  if(mag>JOY_DEAD){
+    let nd;
+    if(Math.abs(dx)>Math.abs(dy)){ setDir(dx>0?1:-1,0); nd=dx>0?'R':'L'; }
+    else { setDir(0,dy>0?1:-1); nd=dy>0?'D':'U'; }
+    if(nd!==lastJoyDir){ lastJoyDir=nd; if(navigator.vibrate) navigator.vibrate(6); }
+  }
+  e.preventDefault();
+}
+function joyEnd(e){
+  if(joyId!==e.pointerId) return;
+  joyId=null; lastJoyDir=''; joy.classList.remove('show');   // snake keeps last heading
+}
+joyzone.addEventListener('pointerdown', joyStart);
+joyzone.addEventListener('pointermove', joyMove);
+joyzone.addEventListener('pointerup', joyEnd);
+joyzone.addEventListener('pointercancel', joyEnd);
+
 const stop=e=>{e.preventDefault();e.stopPropagation();};
 document.getElementById('mPause').addEventListener('pointerdown',e=>{stop(e);
   if(S.mode==='playing'||S.mode==='paused') togglePause();});
@@ -1251,18 +1284,23 @@ function loop(now){
     if(S.accumulator>320){ S.accumulator=0; idleDrift(); }
   }
 
-  // aspect-aware framing: fit the whole arena on any screen (portrait phones too)
+  // aspect-aware framing: fill the screen as much as possible (esp. portrait phones)
   const vFov = THREE.MathUtils.degToRad(camera.fov);
   const t = Math.tan(vFov/2);
-  const margin = S.grid * 0.64;                       // arena half-extent + padding
+  const portrait = camera.aspect < 1;
+  const margin = S.grid * (portrait ? 0.52 : 0.64);   // minimal padding on phones → biggest board
   const fitDist = Math.max(margin/t, margin/(t*camera.aspect));
   const baseDist = fitDist;
   const idle = (S.mode==='menu'||S.mode==='intro');
   const orbit = idle ? now*0.00012 : 0;
+  // portrait: steeper (more top-down) so the square board fills the most vertical space
+  const yF = portrait ? 0.96 : 0.74;
+  const zF = portrait ? 0.40 : 0.62;
+  const lift = portrait ? (1-camera.aspect)*baseDist*0.12 : 0;   // near-centered, big
   camera.position.x = Math.sin(orbit)*baseDist*0.16;
-  camera.position.z = baseDist*0.62 + Math.cos(orbit)*baseDist*0.04;
-  camera.position.y = baseDist*0.74;
-  camera.lookAt(0,0,0);
+  camera.position.z = baseDist*zF + Math.cos(orbit)*baseDist*0.04;
+  camera.position.y = baseDist*yF;
+  camera.lookAt(0,0,lift);
 
   // death cinematic: lunge the camera toward the fallen head
   if(S.mode==='gameover' && S.deathPos){
