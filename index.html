@@ -1,0 +1,1305 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>NEON SERPENT 3D</title>
+<style>
+  :root{
+    --mint:#54d6b2; --teal:#3bbf9e; --rose:#e493ac; --gold:#e7c06a; --cream:#f0ead8;
+    /* legacy aliases kept calm */
+    --cyan:#54d6b2; --mag:#e493ac;
+    --bg:#0a0e14; --ink:#eef2f3; --muted:#8a9aa6;
+    --panel:rgba(16,21,30,.86); --line:rgba(255,255,255,.10);
+    --font:'Segoe UI',system-ui,-apple-system,Arial,sans-serif;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);font-family:var(--font);color:var(--ink);-webkit-tap-highlight-color:transparent;user-select:none;}
+  #app{position:fixed;inset:0;}
+  canvas{display:block;}
+
+  /* ---------- HUD ---------- */
+  #hud{position:fixed;inset:0;pointer-events:none;z-index:10;}
+  .hud-row{position:absolute;display:flex;gap:12px;align-items:center;}
+  #hud-top{top:18px;left:50%;transform:translateX(-50%);}
+  .stat{
+    background:var(--panel);border:1px solid var(--line);
+    border-radius:14px;padding:9px 18px;min-width:86px;text-align:center;
+    backdrop-filter:blur(10px);box-shadow:0 8px 24px rgba(0,0,0,.35);
+  }
+  .stat .label{font-size:9px;letter-spacing:2.5px;color:var(--muted);text-transform:uppercase;font-weight:600;}
+  .stat .value{font-size:21px;font-weight:800;line-height:1.15;letter-spacing:.5px;}
+  .stat.score .value{color:var(--mint);}
+  .stat.level .value{color:var(--rose);}
+  .stat.best  .value{color:var(--gold);}
+  #combo{
+    position:absolute;top:82px;left:50%;transform:translateX(-50%) scale(.6);
+    font-size:24px;font-weight:800;color:var(--gold);opacity:0;
+    text-shadow:0 2px 12px rgba(231,192,106,.45);transition:opacity .15s;letter-spacing:1px;
+  }
+  #speedbar{position:fixed;left:18px;top:50%;transform:translateY(-50%);width:6px;height:170px;
+    background:rgba(255,255,255,.06);border-radius:6px;overflow:hidden;z-index:10;}
+  #speedfill{position:absolute;bottom:0;left:0;width:100%;height:0%;
+    background:linear-gradient(0deg,var(--teal),var(--gold));transition:height .3s;}
+  #speedbar .cap{position:absolute;top:-20px;left:50%;transform:translateX(-50%);font-size:8px;letter-spacing:2px;color:var(--muted);}
+
+  /* golden timer warn */
+  #goldwarn{position:fixed;top:11%;left:50%;transform:translateX(-50%);
+    font-size:12px;letter-spacing:3px;color:var(--gold);opacity:0;font-weight:700;
+    text-shadow:0 2px 14px rgba(231,192,106,.5);z-index:9;}
+
+  /* ---------- Overlays ---------- */
+  .overlay{position:fixed;inset:0;z-index:20;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;text-align:center;gap:26px;
+    background:radial-gradient(120% 90% at 50% 35%,rgba(18,26,38,.65),rgba(6,9,14,.94));
+    backdrop-filter:blur(7px);transition:opacity .4s;}
+  .overlay.hidden{opacity:0;pointer-events:none;}
+  .title{font-size:clamp(38px,8.5vw,80px);font-weight:800;letter-spacing:7px;line-height:1.02;
+    background:linear-gradient(105deg,var(--mint) 0%,var(--cream) 48%,var(--gold) 100%);
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+    filter:drop-shadow(0 4px 22px rgba(0,0,0,.5));}
+  .subtitle{font-size:12px;letter-spacing:5px;color:var(--muted);text-transform:uppercase;margin-top:-8px;}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:20px;
+    padding:28px 30px;max-width:440px;box-shadow:0 24px 70px rgba(0,0,0,.55);}
+  .diff-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin:6px 0 4px;}
+  .btn{pointer-events:auto;cursor:pointer;border:1px solid var(--line);
+    background:rgba(255,255,255,.035);color:var(--ink);border-radius:13px;padding:14px 10px;
+    font-family:var(--font);font-size:15px;font-weight:700;letter-spacing:1px;
+    transition:all .16s ease;text-align:center;}
+  .btn small{display:block;font-size:10px;font-weight:400;color:var(--muted);letter-spacing:.5px;margin-top:5px;}
+  .btn:hover{background:rgba(84,214,178,.12);border-color:rgba(84,214,178,.55);transform:translateY(-2px);}
+  .btn.sel{background:rgba(231,192,106,.12);border-color:rgba(231,192,106,.6);color:var(--cream);}
+  .btn.sel small{color:rgba(240,234,216,.7);}
+  .btn-primary{grid-column:1/-1;background:linear-gradient(100deg,rgba(84,214,178,.18),rgba(231,192,106,.18));
+    border-color:rgba(84,214,178,.5);color:var(--cream);font-size:17px;letter-spacing:3px;padding:17px;}
+  .btn-primary:hover{background:linear-gradient(100deg,rgba(84,214,178,.3),rgba(231,192,106,.3));border-color:var(--gold);}
+  .help{font-size:12px;line-height:2;color:var(--muted);margin-top:2px;}
+  .help kbd{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.14);border-radius:6px;
+    padding:2px 7px;font-family:var(--font);font-size:11px;color:var(--ink);}
+  .go-stats{display:flex;gap:34px;justify-content:center;margin:8px 0;}
+  .go-stat .l{font-size:9px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;}
+  .go-stat .v{font-size:32px;font-weight:800;}
+  .newbest{color:var(--gold);font-weight:700;letter-spacing:4px;font-size:14px;animation:pulse 1.4s infinite;}
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.45;}}
+
+  /* level-up banner */
+  #levelbanner{position:fixed;top:46%;left:50%;transform:translate(-50%,-50%) scale(.4);
+    z-index:15;text-align:center;opacity:0;pointer-events:none;}
+  #levelbanner .lv{font-size:clamp(48px,11vw,86px);font-weight:800;letter-spacing:6px;
+    background:linear-gradient(100deg,var(--gold),var(--cream),var(--mint));-webkit-background-clip:text;background-clip:text;color:transparent;
+    filter:drop-shadow(0 4px 22px rgba(0,0,0,.5));}
+  #levelbanner .tag{font-size:13px;letter-spacing:7px;color:var(--muted);text-transform:uppercase;}
+
+  #pausehint{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);z-index:10;
+    font-size:10px;letter-spacing:3px;color:var(--muted);text-transform:uppercase;}
+  #flash{position:fixed;inset:0;background:radial-gradient(circle at 50% 50%,rgba(231,192,106,.5),transparent 70%);opacity:0;pointer-events:none;z-index:18;}
+  /* floating score popups */
+  #popups{position:fixed;inset:0;pointer-events:none;z-index:14;overflow:hidden;}
+  .pop{position:absolute;font-weight:800;font-size:22px;transform:translate(-50%,-50%);
+    text-shadow:0 2px 10px rgba(0,0,0,.6);animation:popUp 1s ease-out forwards;}
+  @keyframes popUp{0%{opacity:0;transform:translate(-50%,-20%) scale(.4);}
+    18%{opacity:1;transform:translate(-50%,-55%) scale(1.25);}
+    32%{transform:translate(-50%,-70%) scale(1);}
+    100%{opacity:0;transform:translate(-50%,-185%) scale(1.05);}}
+
+  /* ---------- INTRO (cinematic) ---------- */
+  #intro{z-index:40;background:radial-gradient(circle at 50% 44%,#0f1b2c 0%,#070a12 60%,#04060b 100%);gap:0;}
+  .intro-stage{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;}
+  .intro-ring{position:absolute;top:50%;left:50%;border:2px solid rgba(84,214,178,.45);border-radius:50%;
+    width:240px;height:240px;margin:-120px 0 0 -120px;animation:introRing 2.6s ease-out infinite;}
+  .intro-ring.r2{border-color:rgba(231,192,106,.35);animation-delay:.6s;}
+  .intro-ring.r3{border-color:rgba(228,147,172,.3);animation-delay:1.2s;}
+  @keyframes introRing{0%{transform:scale(.35);opacity:0;}25%{opacity:.8;}100%{transform:scale(1.7);opacity:0;}}
+  .intro-title{animation:introTitle 1.5s cubic-bezier(.18,1,.3,1) both;}
+  @keyframes introTitle{0%{opacity:0;filter:blur(24px);transform:scale(1.7);letter-spacing:36px;}
+    100%{opacity:1;filter:blur(0) drop-shadow(0 4px 22px rgba(0,0,0,.5));transform:scale(1);letter-spacing:7px;}}
+  .intro-sub{animation:fadeUp 1s ease .85s both;}
+  .intro-tap{margin-top:30px;font-size:12px;letter-spacing:5px;color:var(--muted);text-transform:uppercase;
+    animation:fadeUp 1s ease 1.5s both,blink 1.8s ease 2.1s infinite;}
+  @keyframes fadeUp{0%{opacity:0;transform:translateY(22px);}100%{opacity:1;transform:translateY(0);}}
+  @keyframes blink{0%,100%{opacity:.35;}50%{opacity:1;}}
+
+  /* ---------- GRAND MENU ---------- */
+  .title.shine{background-size:220% 100%;animation:shine 6s linear infinite;}
+  @keyframes shine{0%{background-position:0% 0;}100%{background-position:220% 0;}}
+  #menu .panel,#menu>div:first-child{animation:fadeUp .7s cubic-bezier(.2,1,.3,1) both;}
+  #menu .panel{animation-delay:.12s;}
+  .btn[data-diff]{position:relative;overflow:hidden;}
+  .btn[data-diff] .ic{font-size:20px;display:block;margin-bottom:3px;}
+  .btn[data-diff].sel::after{content:'✓';position:absolute;top:6px;right:9px;font-size:12px;color:var(--gold);}
+  .btn-primary{position:relative;overflow:hidden;animation:breathe 2.6s ease-in-out infinite;}
+  @keyframes breathe{0%,100%{box-shadow:0 0 0 rgba(84,214,178,0);}50%{box-shadow:0 0 26px rgba(84,214,178,.28);}}
+  .btn-primary::before{content:'';position:absolute;top:0;left:-60%;width:40%;height:100%;
+    background:linear-gradient(100deg,transparent,rgba(255,255,255,.22),transparent);
+    animation:sweep 3.2s ease-in-out infinite;}
+  @keyframes sweep{0%{left:-60%;}55%,100%{left:130%;}}
+
+  /* ---------- GAME-OVER DRAMA ---------- */
+  #gameover{background:radial-gradient(circle at 50% 44%,rgba(70,22,34,.55),rgba(6,9,14,.96));}
+  #gameover .title{animation:goReveal .75s cubic-bezier(.2,1,.3,1) both;}
+  @keyframes goReveal{0%{opacity:0;transform:scale(2.3);filter:blur(18px);letter-spacing:34px;}
+    60%{opacity:1;}100%{opacity:1;transform:scale(1);filter:blur(0);}}
+  #vignette{position:fixed;inset:0;pointer-events:none;z-index:17;opacity:0;
+    background:radial-gradient(circle at 50% 50%,transparent 40%,rgba(160,30,50,.55) 100%);transition:opacity .25s;}
+
+  /* coin shimmer in flight (filter only — won't fight WAAPI transform) */
+  .coinfly{animation:coinGlow .42s ease-in-out infinite alternate;}
+  @keyframes coinGlow{from{filter:brightness(1);}to{filter:brightness(1.7) drop-shadow(0 0 6px rgba(231,192,106,.8));}}
+  #wallet.bump{transform:scale(1.16);box-shadow:0 0 26px rgba(231,192,106,.6),0 8px 24px rgba(0,0,0,.4);border-color:var(--gold);}
+
+  /* ---------- WALLET / COINS ---------- */
+  #wallet{position:fixed;top:18px;right:18px;z-index:13;display:flex;align-items:center;gap:9px;
+    background:var(--panel);border:1px solid rgba(231,192,106,.4);border-radius:15px;padding:9px 15px 9px 11px;
+    backdrop-filter:blur(10px);box-shadow:0 8px 24px rgba(0,0,0,.4);transition:transform .12s ease;}
+  #wallet.bump{transform:scale(1.16);}
+  .coinico{width:24px;height:24px;border-radius:50%;flex:none;
+    background:radial-gradient(circle at 34% 28%,#fff4cf,#edca74 50%,#b88a2c 100%);
+    box-shadow:inset 0 -2px 3px rgba(120,80,0,.45),inset 0 2px 3px rgba(255,255,255,.6),0 0 10px rgba(231,192,106,.45);
+    display:flex;align-items:center;justify-content:center;font-size:12px;color:#7a560f;font-weight:900;}
+  .wval{font-size:19px;font-weight:800;color:var(--gold);min-width:18px;letter-spacing:.5px;
+    text-shadow:0 1px 6px rgba(231,192,106,.3);}
+  .wlabel{font-size:8px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-right:2px;}
+  .coinfly{position:fixed;left:0;top:0;width:36px;height:36px;border-radius:50%;z-index:30;pointer-events:none;
+    background:radial-gradient(circle at 34% 28%,#fff4cf,#edca74 50%,#b88a2c 100%);
+    box-shadow:inset 0 -3px 5px rgba(120,80,0,.5),inset 0 2px 4px rgba(255,255,255,.6),0 0 18px rgba(231,192,106,.8);
+    will-change:transform,opacity;display:flex;align-items:center;justify-content:center;
+    font-size:18px;font-weight:900;color:#8a630f;}
+  .coinfly::after{content:'¢';}
+
+  /* ---------- PROFILE ---------- */
+  .secondary{margin-top:12px;}
+  .prow{display:flex;align-items:center;justify-content:space-between;gap:20px;
+    padding:13px 4px;border-bottom:1px solid rgba(255,255,255,.07);font-size:15px;}
+  .prow:last-of-type{border-bottom:none;}
+  .prow span{color:var(--muted);display:flex;align-items:center;gap:9px;}
+  .prow b{font-size:19px;font-weight:800;color:var(--ink);}
+  .prow b.gold{color:var(--gold);} .prow b.mint{color:var(--mint);} .prow b.rose{color:var(--rose);}
+  .avatar{width:74px;height:74px;border-radius:50%;margin:0 auto 4px;
+    background:linear-gradient(135deg,var(--teal),var(--gold));display:flex;align-items:center;justify-content:center;
+    font-size:34px;box-shadow:0 8px 28px rgba(0,0,0,.4),inset 0 0 0 2px rgba(255,255,255,.15);}
+
+  /* ---------- MOBILE CONTROLS ---------- */
+  #touch{position:fixed;inset:0;z-index:12;display:none;pointer-events:none;}
+  body.touch #touch{display:block;}
+  /* D-pad bottom-right */
+  #dpad{position:absolute;right:max(20px,env(safe-area-inset-right));bottom:max(34px,env(safe-area-inset-bottom));
+    width:222px;height:222px;pointer-events:none;
+    background:radial-gradient(circle,rgba(84,214,178,.05),transparent 68%);}
+  .dbtn{position:absolute;width:70px;height:70px;pointer-events:auto;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;
+    background:rgba(16,21,30,.7);border:1.5px solid rgba(84,214,178,.34);border-radius:20px;
+    color:var(--mint);font-size:26px;backdrop-filter:blur(12px);
+    box-shadow:0 10px 26px rgba(0,0,0,.45);transition:background .07s,transform .07s,box-shadow .07s;
+    touch-action:none;-webkit-user-select:none;user-select:none;}
+  .dbtn:active,.dbtn.act{background:rgba(84,214,178,.32);transform:scale(.88);border-color:var(--mint);
+    box-shadow:0 0 24px rgba(84,214,178,.45);}
+  #d-up{top:0;left:76px;} #d-down{bottom:0;left:76px;} #d-left{left:0;top:76px;} #d-right{right:0;top:76px;}
+  /* mobile top-left buttons */
+  #mbtns{position:absolute;top:max(14px,env(safe-area-inset-top));left:max(14px,env(safe-area-inset-left));
+    display:flex;gap:10px;pointer-events:none;}
+  .mbtn{pointer-events:auto;cursor:pointer;width:46px;height:46px;border-radius:13px;
+    background:rgba(16,21,30,.72);border:1px solid var(--line);color:var(--ink);font-size:18px;
+    display:flex;align-items:center;justify-content:center;backdrop-filter:blur(10px);touch-action:none;
+    box-shadow:0 8px 22px rgba(0,0,0,.4);}
+  .mbtn:active{background:rgba(231,192,106,.2);}
+
+  /* ---------- RESPONSIVE ---------- */
+  @media (max-width:560px){
+    #hud-top{top:max(10px,env(safe-area-inset-top));gap:8px;}
+    .stat{min-width:0;padding:6px 10px;border-radius:10px;}
+    .stat .value{font-size:16px;} .stat .label{font-size:9px;letter-spacing:1px;}
+    #combo{top:64px;font-size:20px;}
+    #speedbar{height:120px;width:6px;left:10px;}
+    .panel{padding:20px 18px;max-width:92vw;}
+    .title{letter-spacing:2px;}
+    .diff-grid{gap:10px;}
+    .btn{padding:16px 8px;font-size:14px;}     /* bigger tap targets */
+    .btn-primary{padding:18px;font-size:16px;}
+    .help{font-size:11px;line-height:1.7;}
+    #pausehint{display:none;}                    /* keyboard hint useless on mobile */
+    .go-stats{gap:18px;} .go-stat .v{font-size:24px;}
+  }
+  @media (max-width:560px){
+    #wallet{top:max(10px,env(safe-area-inset-top));right:max(10px,env(safe-area-inset-right));padding:7px 12px 7px 9px;}
+    .wval{font-size:16px;} .coinico{width:20px;height:20px;font-size:10px;} .wlabel{display:none;}
+  }
+  @media (max-width:380px){ #dpad{width:198px;height:198px;} .dbtn{width:62px;height:62px;}
+    #d-up,#d-down{left:68px;} #d-left,#d-right{top:68px;} }
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<!-- HUD -->
+<div id="hud">
+  <div id="hud-top" class="hud-row">
+    <div class="stat score"><div class="label">Điểm</div><div class="value" id="ui-score">0</div></div>
+    <div class="stat level"><div class="label">Cấp</div><div class="value" id="ui-level">1</div></div>
+    <div class="stat best"><div class="label">Kỷ lục</div><div class="value" id="ui-best">0</div></div>
+  </div>
+  <div id="combo">COMBO x2</div>
+  <div id="goldwarn">★ MỒI VÀNG — NHANH LÊN ★</div>
+</div>
+<div id="speedbar"><div class="cap">TỐC</div><div id="speedfill"></div></div>
+<div id="pausehint">SPACE: tạm dừng &nbsp;·&nbsp; R: chơi lại</div>
+
+<!-- level up banner -->
+<div id="levelbanner"><div class="lv">CẤP 2</div><div class="tag">TĂNG TỐC</div></div>
+<div id="flash"></div>
+<div id="vignette"></div>
+<div id="popups"></div>
+
+<!-- WALLET -->
+<div id="wallet">
+  <div class="coinico">¢</div>
+  <span class="wlabel">Ví</span>
+  <span class="wval" id="wval">0</span>
+</div>
+
+<!-- MOBILE CONTROLS -->
+<div id="touch">
+  <div id="mbtns">
+    <div class="mbtn" id="mPause">⏸</div>
+    <div class="mbtn" id="mRestart">↻</div>
+  </div>
+  <div id="dpad">
+    <div class="dbtn" id="d-up"    data-dx="0"  data-dz="-1">▲</div>
+    <div class="dbtn" id="d-left"  data-dx="-1" data-dz="0">◀</div>
+    <div class="dbtn" id="d-right" data-dx="1"  data-dz="0">▶</div>
+    <div class="dbtn" id="d-down"  data-dx="0"  data-dz="1">▼</div>
+  </div>
+</div>
+
+<!-- INTRO (cinematic) -->
+<div class="overlay" id="intro">
+  <div class="intro-stage">
+    <div class="intro-ring"></div>
+    <div class="intro-ring r2"></div>
+    <div class="intro-ring r3"></div>
+    <div class="title intro-title shine">NEON<br>SERPENT 3D</div>
+    <div class="subtitle intro-sub">RẮN ĂN MỒI · THẾ HỆ MỚI</div>
+    <div class="intro-tap">CHẠM ĐỂ VÀO GAME</div>
+  </div>
+</div>
+
+<!-- START / MENU -->
+<div class="overlay hidden" id="menu">
+  <div>
+    <div class="title shine">NEON<br>SERPENT 3D</div>
+    <div class="subtitle">Rắn ăn mồi · phiên bản thế hệ mới</div>
+  </div>
+  <div class="panel">
+    <div style="font-size:11px;letter-spacing:3px;opacity:.6;margin-bottom:12px;text-transform:uppercase;">Chọn độ khó</div>
+    <div class="diff-grid">
+      <div class="btn" data-diff="easy"><span class="ic">🌿</span>DỄ<small>chậm · sân rộng</small></div>
+      <div class="btn sel" data-diff="normal"><span class="ic">⚡</span>THƯỜNG<small>cân bằng</small></div>
+      <div class="btn" data-diff="hard"><span class="ic">🔥</span>KHÓ<small>nhanh · chướng ngại</small></div>
+      <div class="btn" data-diff="insane"><span class="ic">💀</span>ĐIÊN<small>cực nhanh · ngộp thở</small></div>
+      <div class="btn btn-primary" id="startBtn">BẮT ĐẦU ▶</div>
+      <div class="btn" id="profileBtn" style="grid-column:1/-1">🪙 HỒ SƠ &amp; VÍ XU</div>
+    </div>
+    <div class="help">
+      <kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd> hoặc <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> di chuyển<br>
+      <kbd>Space</kbd> tạm dừng · <kbd>R</kbd> chơi lại · vuốt trên điện thoại
+    </div>
+  </div>
+</div>
+
+<!-- PROFILE -->
+<div class="overlay hidden" id="profile">
+  <div>
+    <div class="avatar" id="p-avatar">🐍</div>
+    <div class="title" style="font-size:clamp(28px,6vw,50px);letter-spacing:5px">HỒ SƠ</div>
+  </div>
+  <div class="panel">
+    <div class="prow"><span>🪙 Ví xu</span><b class="gold" id="p-wallet">0</b></div>
+    <div class="prow"><span>🏆 Kỷ lục điểm</span><b class="mint" id="p-best">0</b></div>
+    <div class="prow"><span>🎮 Số ván đã chơi</span><b id="p-games">0</b></div>
+    <div class="prow"><span>🍎 Tổng mồi đã ăn</span><b id="p-food">0</b></div>
+    <div class="prow"><span>🐉 Tiến hóa cao nhất</span><b class="mint" id="p-evo">LỤC BẢO</b></div>
+    <div class="prow"><span>⭐ Hạng</span><b class="rose" id="p-rank">Tân binh</b></div>
+    <div class="diff-grid secondary"><div class="btn btn-primary" id="profClose">ĐÓNG ✕</div></div>
+  </div>
+</div>
+
+<!-- PAUSE -->
+<div class="overlay hidden" id="pause">
+  <div class="title" style="font-size:clamp(34px,7vw,64px)">TẠM DỪNG</div>
+  <div class="panel">
+    <div class="diff-grid">
+      <div class="btn btn-primary" id="resumeBtn">TIẾP TỤC ▶</div>
+      <div class="btn" id="pauseRestart">CHƠI LẠI ↻</div>
+      <div class="btn" id="pauseMenu">MENU ⌂</div>
+    </div>
+  </div>
+</div>
+
+<!-- GAME OVER -->
+<div class="overlay hidden" id="gameover">
+  <div class="title" style="font-size:clamp(38px,8vw,72px)">KẾT THÚC</div>
+  <div id="newbestLine" class="newbest" style="display:none">★ KỶ LỤC MỚI ★</div>
+  <div class="panel">
+    <div class="go-stats">
+      <div class="go-stat"><div class="l">Điểm</div><div class="v" id="go-score" style="color:var(--mint)">0</div></div>
+      <div class="go-stat"><div class="l">Cấp</div><div class="v" id="go-level" style="color:var(--rose)">1</div></div>
+      <div class="go-stat"><div class="l">🪙 Xu nhận</div><div class="v" id="go-coins" style="color:var(--gold)">0</div></div>
+    </div>
+    <div class="diff-grid">
+      <div class="btn btn-primary" id="retryBtn">CHƠI LẠI ↻</div>
+      <div class="btn" id="goMenu">ĐỔI ĐỘ KHÓ ⌂</div>
+    </div>
+  </div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+
+/* =========================================================================
+   NEON SERPENT 3D — single-file release build
+   - grid-based snake on a 3D neon arena, smooth interpolated motion
+   - levels, scoring, combo, golden bonus food, obstacles, difficulty modes
+   - bloom glow, particles, screen shake, synth audio
+   ========================================================================= */
+
+// ----------------------------- CONFIG -----------------------------
+const DIFF = {
+  easy:   { grid:24, baseTick:200, minTick:115, tickStep:6,  obstPerLvl:0, goldChance:0.16, foodPerLvl:5, label:'DỄ' },
+  normal: { grid:20, baseTick:165, minTick:82,  tickStep:8,  obstPerLvl:1, goldChance:0.18, foodPerLvl:5, label:'THƯỜNG' },
+  hard:   { grid:18, baseTick:138, minTick:62,  tickStep:9,  obstPerLvl:2, goldChance:0.20, foodPerLvl:4, label:'KHÓ' },
+  insane: { grid:16, baseTick:112, minTick:48,  tickStep:10, obstPerLvl:3, goldChance:0.22, foodPerLvl:4, label:'ĐIÊN' },
+};
+const COMBO_WINDOW = 2600;   // ms to keep combo alive
+const COMBO_MAX = 8;
+const GOLD_LIFETIME = 6200;  // ms golden food stays
+const CELL = 1;
+
+// refined "luxury jade" palette — calm, high-contrast, not glaring
+const COL = {
+  mint:0x54d6b2, gold:0xe7c06a, rose:0xe493ac, cream:0xf0ead8,
+  head:0x9af0d4, body:0x2fbf9c, bodyTail:0x12715e,   // emerald snake gradient
+  food:0xe8845a, food2:0xffb98a,                      // warm coral gem
+  gold2:0xf3d488, obstacle:0xc65a6a, wall:0x223040,   // muted ruby obstacle, slate wall
+};
+
+// EVOLUTION TIERS — the snake molts into a more VIP body each level
+const EVO = [
+  {name:'LỤC BẢO',   head:0x9af0d4, body:0x2fbf9c, tail:0x12715e, metalness:0.25, roughness:0.30, clearcoat:0.70, emi:0.28, sheen:0.4, irid:0.00},
+  {name:'LAM NGỌC',  head:0xa6d4ff, body:0x2f7bff, tail:0x123a8e, metalness:0.45, roughness:0.24, clearcoat:0.90, emi:0.32, sheen:0.5, irid:0.10},
+  {name:'TỬ TINH',   head:0xdcb4ff, body:0x9b5cff, tail:0x451e8e, metalness:0.50, roughness:0.22, clearcoat:1.00, emi:0.36, sheen:0.6, irid:0.25},
+  {name:'HỒNG NGỌC', head:0xffb6c6, body:0xff4d6d, tail:0x8e1230, metalness:0.55, roughness:0.20, clearcoat:1.00, emi:0.40, sheen:0.6, irid:0.18},
+  {name:'HOÀNG KIM', head:0xfff1b4, body:0xf0c24b, tail:0x8a5e12, metalness:0.96, roughness:0.16, clearcoat:1.00, emi:0.46, sheen:0.7, irid:0.10},
+  {name:'KIM CƯƠNG', head:0xffffff, body:0xd2ecff, tail:0x82a4cc, metalness:0.60, roughness:0.06, clearcoat:1.00, emi:0.52, sheen:1.0, irid:0.95},
+  {name:'THẦN LONG', head:0xfff7da, body:0xffd86b, tail:0xff7a3d, metalness:0.88, roughness:0.10, clearcoat:1.00, emi:0.80, sheen:1.0, irid:1.00},
+];
+
+// ----------------------------- STATE -----------------------------
+const S = {
+  mode:'menu',            // menu | playing | paused | gameover
+  diff:'normal',
+  cfg:DIFF.normal,
+  grid:20,
+  score:0, level:1, best:0,
+  foodEaten:0, foodThisLevel:0,
+  tick:165, accumulator:0,
+  combo:0, lastEat:0,
+  snake:[],               // [{x,z}] head first (grid cells)
+  prevSnake:[],           // positions before last tick (for interpolation)
+  dir:{x:1,z:0}, nextDir:{x:1,z:0},
+  food:null,              // {x,z}
+  gold:null,              // {x,z, born}
+  obstacles:[],           // [{x,z}]
+  shake:0,
+  evo:0, evoColors:null, evoMat:null, moltUntil:0,   // evolution / molt state
+};
+S.best = +(localStorage.getItem('neon_serpent_best')||0);
+// persistent profile / wallet
+S.wallet      = +(localStorage.getItem('ns_wallet')||0);
+S.gamesPlayed = +(localStorage.getItem('ns_games')||0);
+S.lifeFood    = +(localStorage.getItem('ns_food')||0);
+S.bestEvo     = +(localStorage.getItem('ns_evo')||0);   // highest evolution tier reached
+S.runCoins    = 0;
+let walletShown = S.wallet, walletTarget = S.wallet;
+
+// ----------------------------- THREE SETUP -----------------------------
+const app = document.getElementById('app');
+const renderer = new THREE.WebGLRenderer({ antialias:true, powerPreference:'high-performance' });
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 0.92;          // calmer exposure
+app.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0a0e14);
+scene.fog = new THREE.FogExp2(0x0a0e14, 0.012);
+
+// PBR environment → soft realistic reflections on glossy pieces (premium look, no glare)
+const pmrem = new THREE.PMREMGenerator(renderer);
+scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+scene.environmentIntensity = 0.35;
+
+const camera = new THREE.PerspectiveCamera(52, innerWidth/innerHeight, 0.1, 400);
+
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+// soft, selective bloom: low strength + high threshold so only highlights glow (no whole-screen glare)
+const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth,innerHeight), 0.5, 0.7, 0.82);
+composer.addPass(bloom);
+composer.addPass(new OutputPass());
+
+// lights — soft, layered, warm key + cool fill for depth
+scene.add(new THREE.AmbientLight(0x3a4658, 0.85));
+const key = new THREE.DirectionalLight(0xfff1d8, 1.05); key.position.set(7,16,9); scene.add(key);
+const fill = new THREE.DirectionalLight(0x6fa3c8, 0.4); fill.position.set(-8,6,-6); scene.add(fill);
+const headLight = new THREE.PointLight(COL.mint, 0, 12, 2); scene.add(headLight);
+const itemLight = new THREE.PointLight(COL.gold, 0, 7, 2); scene.add(itemLight);   // sparkle on gems
+
+// ----------------------------- ARENA -----------------------------
+let arena = new THREE.Group(); scene.add(arena);
+function worldPos(cell, y=0){
+  const h = S.grid/2;
+  return new THREE.Vector3((cell.x - h + 0.5)*CELL, y, (cell.z - h + 0.5)*CELL);
+}
+function buildArena(){
+  arena.clear();
+  const N = S.grid, half = N/2;
+  // floor — soft matte, gentle radial vignette feel via dark material
+  const floor = new THREE.Mesh(
+    new THREE.PlaneGeometry(N,N),
+    new THREE.MeshStandardMaterial({color:0x0c1119, roughness:.95, metalness:.05})
+  );
+  floor.rotation.x = -Math.PI/2; floor.position.y = -0.02; arena.add(floor);
+  // subtle grid lines (calm, low opacity — readable not glaring)
+  const g = new THREE.GridHelper(N, N, 0x3a5a52, 0x1a2630);
+  g.material.transparent = true; g.material.opacity = 0.22; arena.add(g);
+  // border frame — brushed metal rail with a faint mint edge glow
+  const railMat = new THREE.MeshStandardMaterial({color:COL.wall, roughness:.35, metalness:.85, envMapIntensity:1.0});
+  const edgeMat = new THREE.MeshStandardMaterial({color:0x163a33, emissive:COL.mint, emissiveIntensity:0.45, roughness:.5, metalness:.3});
+  const t = 0.34, hgt = 0.78;
+  const mkWall = (w,d,x,z)=>{
+    const m=new THREE.Mesh(new THREE.BoxGeometry(w,hgt,d),railMat); m.position.set(x,hgt/2-0.05,z); arena.add(m);
+    const e=new THREE.Mesh(new THREE.BoxGeometry(w*0.99,0.06,d*0.99),edgeMat); e.position.set(x,hgt-0.07,z); arena.add(e);
+  };
+  mkWall(N+t, t, 0, -half-t/2+0.02);
+  mkWall(N+t, t, 0,  half+t/2-0.02);
+  mkWall(t, N+t, -half-t/2+0.02, 0);
+  mkWall(t, N+t,  half+t/2-0.02, 0);
+}
+
+// ----------------------------- SNAKE MESHES -----------------------------
+const segGeo = new RoundedBoxGeometry(0.86,0.86,0.86, 5, 0.26);   // soft premium pebble
+const segMeshes = [];
+const snakeGroup = new THREE.Group(); scene.add(snakeGroup);
+function tuneSegMat(mat, e){
+  mat.metalness=e.metalness; mat.roughness=e.roughness; mat.clearcoat=e.clearcoat;
+  mat.sheen=e.sheen; mat.iridescence=e.irid||0; mat.iridescenceIOR=1.3+(e.irid||0)*0.8;
+  mat.needsUpdate=true;
+}
+function segMaterial(){
+  const m=new THREE.MeshPhysicalMaterial({
+    color:COL.body, emissive:COL.body, emissiveIntensity:0.28,
+    roughness:0.30, metalness:0.25, clearcoat:0.7, clearcoatRoughness:0.26,
+    envMapIntensity:0.8, sheen:0.4, sheenColor:new THREE.Color(0xfff0d8),
+  });
+  if(S.evoMat) tuneSegMat(m, S.evoMat);
+  return m;
+}
+// switch the whole serpent to an evolution tier's look
+function applyEvo(t){
+  const e=EVO[t]; S.evo=t; S.evoMat=e;
+  S.evoColors={head:e.head, body:e.body, tail:e.tail};
+  for(const m of segMeshes) tuneSegMat(m.material, e);
+}
+function ensureSegMeshes(n){
+  while(segMeshes.length < n){ const m=new THREE.Mesh(segGeo, segMaterial()); m.castShadow=false; snakeGroup.add(m); segMeshes.push(m); }
+  for(let i=0;i<segMeshes.length;i++) segMeshes[i].visible = i < n;
+}
+function colorForIndex(i, n){
+  const c = S.evoColors || {head:COL.head, body:COL.body, tail:COL.bodyTail};
+  if(i===0) return new THREE.Color(c.head);
+  const b = new THREE.Color(c.body), tail = new THREE.Color(c.tail);
+  const t = n>1 ? (i-1)/(n-1) : 0;
+  return b.clone().lerp(tail, t);
+}
+
+// snake head decoration: two glossy eyes that face the travel direction
+const headDeco = new THREE.Group(); scene.add(headDeco);
+const eyeWhiteMat = new THREE.MeshPhysicalMaterial({color:0xf6fffb, roughness:0.15, clearcoat:1, envMapIntensity:1});
+const pupilMat = new THREE.MeshStandardMaterial({color:0x0c1a16, roughness:0.4});
+function mkEye(sx){
+  const g = new THREE.Group();
+  const white = new THREE.Mesh(new THREE.SphereGeometry(0.15,16,16), eyeWhiteMat);
+  const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.075,12,12), pupilMat); pupil.position.set(0,0,0.11);
+  g.add(white,pupil); g.position.set(sx,0.2,0.3); return g;
+}
+headDeco.add(mkEye(-0.2), mkEye(0.2));
+
+// ----------------------------- FOOD / GOLD / OBSTACLES -----------------------------
+// normal food: faceted coral gem
+const foodMesh = new THREE.Mesh(
+  new THREE.IcosahedronGeometry(0.4, 0),
+  new THREE.MeshPhysicalMaterial({color:COL.food, emissive:COL.food, emissiveIntensity:0.5,
+    roughness:0.12, metalness:0.1, clearcoat:1, clearcoatRoughness:0.1, envMapIntensity:1.1, transmission:0.15, ior:1.4})
+); scene.add(foodMesh); foodMesh.visible=false;
+const foodHalo = new THREE.Mesh(new THREE.RingGeometry(0.5,0.58,40),
+  new THREE.MeshBasicMaterial({color:COL.food2, side:THREE.DoubleSide, transparent:true, opacity:0.4}));
+foodHalo.rotation.x=-Math.PI/2; scene.add(foodHalo); foodHalo.visible=false;
+
+// golden reward: polished diamond
+const goldMesh = new THREE.Mesh(
+  new THREE.OctahedronGeometry(0.46, 0),
+  new THREE.MeshPhysicalMaterial({color:COL.gold2, emissive:COL.gold, emissiveIntensity:0.7,
+    roughness:0.08, metalness:0.95, clearcoat:1, envMapIntensity:1.4})
+); scene.add(goldMesh); goldMesh.visible=false;
+const goldRing = new THREE.Mesh(
+  new THREE.RingGeometry(0.6,0.7,48),
+  new THREE.MeshBasicMaterial({color:COL.gold, side:THREE.DoubleSide, transparent:true})
+); goldRing.rotation.x=-Math.PI/2; scene.add(goldRing); goldRing.visible=false;
+
+// ugly grey HAZARD rock — irregular, matte, non-glowing → obviously NOT a reward
+function makeRockGeo(){
+  const g=new THREE.DodecahedronGeometry(0.54,0);
+  const p=g.attributes.position;
+  for(let i=0;i<p.count;i++){
+    const fx=0.72+Math.random()*0.42, fy=0.58+Math.random()*0.4, fz=0.72+Math.random()*0.42;
+    p.setXYZ(i, p.getX(i)*fx, p.getY(i)*fy, p.getZ(i)*fz);
+  }
+  g.computeVertexNormals(); return g;
+}
+const rockMat = new THREE.MeshStandardMaterial({color:0x6e665f, roughness:1.0, metalness:0.04, flatShading:true, envMapIntensity:0.25});
+const ROCK_Y=0.46, ROCK_DROP=13, ROCK_FALL=520;
+
+// shockwave ring pool (pickup feedback)
+const shockMat = ()=>new THREE.MeshBasicMaterial({color:COL.cream, side:THREE.DoubleSide, transparent:true, opacity:0});
+const shocks=[]; for(let i=0;i<6;i++){ const m=new THREE.Mesh(new THREE.RingGeometry(0.3,0.42,48), shockMat()); m.rotation.x=-Math.PI/2; m.visible=false; scene.add(m); shocks.push({mesh:m,life:0,max:0.6,col:new THREE.Color(COL.cream)}); }
+function shockwave(pos,color){
+  const s=shocks.find(s=>!s.mesh.visible)||shocks[0];
+  s.mesh.visible=true; s.life=0; s.col.set(color); s.mesh.material.color.copy(s.col);
+  s.mesh.position.set(pos.x,0.05,pos.z); s.mesh.scale.setScalar(1);
+}
+function updateShocks(dt){
+  for(const s of shocks){ if(!s.mesh.visible) continue;
+    s.life+=dt; const t=s.life/s.max;
+    if(t>=1){ s.mesh.visible=false; continue; }
+    s.mesh.scale.setScalar(1+t*5); s.mesh.material.opacity=(1-t)*0.7;
+  }
+}
+// blood splatter decal on the floor (death)
+const splat = new THREE.Mesh(new THREE.CircleGeometry(0.6,18),
+  new THREE.MeshBasicMaterial({color:0x7a0b16, transparent:true, opacity:0, side:THREE.DoubleSide}));
+splat.rotation.x=-Math.PI/2; splat.visible=false; scene.add(splat);
+let splatStart=0;
+function bloodSplatter(pos){ splat.visible=true; splat.position.set(pos.x,0.04,pos.z);
+  splat.rotation.z=Math.random()*6.28; splat.scale.set(0.25,0.18,0.25); splatStart=performance.now(); }
+function updateSplatter(now){ if(!splat.visible) return;
+  const a=(now-splatStart)/2400; if(a>=1){ splat.visible=false; return; }
+  const sc=0.4+a*1.5; splat.scale.set(sc, sc*0.8, sc);
+  splat.material.opacity = a<0.12 ? (a/0.12)*0.85 : (1-a)*0.85;
+}
+const obstMeshes = [];
+const obstGroup = new THREE.Group(); scene.add(obstGroup);
+function syncObstacleMeshes(){
+  while(obstMeshes.length < S.obstacles.length){
+    const m=new THREE.Mesh(makeRockGeo(),rockMat); m.scale.setScalar(0.88); m.userData.cell=null;
+    obstGroup.add(m); obstMeshes.push(m);
+  }
+  for(let i=0;i<obstMeshes.length;i++){
+    const vis = i < S.obstacles.length; const m=obstMeshes[i]; m.visible=vis;
+    if(vis){ const o=S.obstacles[i]; const p=worldPos(o,ROCK_Y); m.position.x=p.x; m.position.z=p.z;
+      const key=o.x+'_'+o.z;
+      if(m.userData.cell!==key){          // fresh ugly shape + random tilt when (re)assigned
+        m.geometry.dispose(); m.geometry=makeRockGeo();
+        m.rotation.set(Math.random()*0.6, Math.random()*Math.PI*2, Math.random()*0.6);
+        m.userData.cell=key;
+      }
+    }
+  }
+}
+function onRockLand(pos){
+  S.shake = Math.max(S.shake, 0.75);      // quake the arena
+  shockwave(pos, 0x8c867e);
+  burst(pos, 0x9a948c, 18, 1.1);           // grey dust kick-up
+  sfx('thud');
+}
+
+function cellKey(c){ return c.x+'_'+c.z; }
+function occupied(){
+  const set = new Set();
+  S.snake.forEach(c=>set.add(cellKey(c)));
+  S.obstacles.forEach(c=>set.add(cellKey(c)));
+  if(S.food) set.add(cellKey(S.food));
+  if(S.gold) set.add(cellKey(S.gold));
+  return set;
+}
+function randomFreeCell(){
+  const used = occupied(); const free=[];
+  for(let x=0;x<S.grid;x++) for(let z=0;z<S.grid;z++){ const k=x+'_'+z; if(!used.has(k)) free.push({x,z}); }
+  if(!free.length) return null;
+  return free[(Math.random()*free.length)|0];
+}
+function spawnFood(){ const c=randomFreeCell(); S.food = c; }
+function maybeSpawnGold(){
+  if(S.gold) return;
+  if(Math.random() < S.cfg.goldChance){ const c=randomFreeCell(); if(c){ S.gold={...c, born:performance.now()}; sfx('goldAppear'); } }
+}
+
+// ----------------------------- PARTICLES -----------------------------
+const PMAX = 600;
+const pGeo = new THREE.BufferGeometry();
+const pPos = new Float32Array(PMAX*3);
+const pCol = new Float32Array(PMAX*3);
+pGeo.setAttribute('position', new THREE.BufferAttribute(pPos,3));
+pGeo.setAttribute('color', new THREE.BufferAttribute(pCol,3));
+const pMat = new THREE.PointsMaterial({size:0.17, vertexColors:true, transparent:true, opacity:0.92, depthWrite:false, blending:THREE.AdditiveBlending});
+const points = new THREE.Points(pGeo,pMat); scene.add(points);
+const pData = []; // {pos:Vec3, vel:Vec3, life, max, col:Color}
+function burst(pos, color, count=26, power=1){
+  const c = new THREE.Color(color);
+  for(let i=0;i<count;i++){
+    if(pData.length>=PMAX) break;
+    const a=Math.random()*Math.PI*2, b=Math.random()*Math.PI - Math.PI/2;
+    const sp=(0.06+Math.random()*0.14)*power;
+    pData.push({
+      pos:pos.clone(),
+      vel:new THREE.Vector3(Math.cos(a)*Math.cos(b),Math.abs(Math.sin(b))*1.2+0.04,Math.sin(a)*Math.cos(b)).multiplyScalar(sp),
+      life:0, max:0.5+Math.random()*0.5, col:c
+    });
+  }
+}
+function updateParticles(dt){
+  for(let i=pData.length-1;i>=0;i--){
+    const p=pData[i]; p.life+=dt;
+    if(p.life>=p.max){ pData.splice(i,1); continue; }
+    p.vel.y -= 0.006*dt*60; p.pos.addScaledVector(p.vel, dt*60);
+  }
+  for(let i=0;i<PMAX;i++){
+    if(i<pData.length){
+      const p=pData[i], f=1-p.life/p.max;
+      pPos[i*3]=p.pos.x; pPos[i*3+1]=p.pos.y; pPos[i*3+2]=p.pos.z;
+      pCol[i*3]=p.col.r*f; pCol[i*3+1]=p.col.g*f; pCol[i*3+2]=p.col.b*f;
+    } else { pPos[i*3+1]=-999; }
+  }
+  pGeo.attributes.position.needsUpdate=true;
+  pGeo.attributes.color.needsUpdate=true;
+}
+// glowing wake trail: emit a faint mote at the head each frame while moving
+function trailEmit(pos){
+  if(pData.length>=PMAX-30) return;
+  pData.push({
+    pos:pos.clone().add(new THREE.Vector3((Math.random()-0.5)*0.2,0,(Math.random()-0.5)*0.2)),
+    vel:new THREE.Vector3((Math.random()-0.5)*0.01,0.012,(Math.random()-0.5)*0.01),
+    life:0, max:0.34+Math.random()*0.18, col:new THREE.Color(COL.head)
+  });
+}
+
+// ----------------------------- AMBIENT DUST (atmosphere) -----------------------------
+const DUST=110;
+const dGeo=new THREE.BufferGeometry(); const dPos=new Float32Array(DUST*3);
+for(let i=0;i<DUST;i++){ dPos[i*3]=(Math.random()-0.5)*30; dPos[i*3+1]=Math.random()*10+0.5; dPos[i*3+2]=(Math.random()-0.5)*30; }
+dGeo.setAttribute('position',new THREE.BufferAttribute(dPos,3));
+const dust=new THREE.Points(dGeo,new THREE.PointsMaterial({color:0x4a6b78,size:0.06,transparent:true,opacity:0.5,depthWrite:false}));
+scene.add(dust);
+
+// ----------------------------- AUDIO (Web Audio synth) -----------------------------
+let actx=null, master=null;
+function audio(){ if(!actx){ try{ actx=new (window.AudioContext||window.webkitAudioContext)();
+  master=actx.createGain(); master.gain.value=0.6; master.connect(actx.destination); }catch(e){} } return actx; }
+// soft note with gentle attack/release → musical, not harsh
+function note(freq, dur, {type='sine', vol=0.16, delay=0, slideTo=null, detune=0}={}){
+  const a=audio(); if(!a) return;
+  const t0=a.currentTime+delay;
+  const o=a.createOscillator(), g=a.createGain();
+  o.type=type; o.frequency.setValueAtTime(freq,t0); o.detune.value=detune;
+  if(slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, t0+dur);
+  g.gain.setValueAtTime(0.0001,t0);
+  g.gain.exponentialRampToValueAtTime(vol, t0+0.012);     // soft attack
+  g.gain.exponentialRampToValueAtTime(0.0001, t0+dur);    // smooth release
+  o.connect(g).connect(master||a.destination); o.start(t0); o.stop(t0+dur+0.02);
+}
+function sfx(name){
+  switch(name){
+    // pleasant two-note "collect" (perfect fifth)
+    case 'eat':       note(659,0.12,{type:'sine',vol:0.14}); note(988,0.16,{type:'triangle',vol:0.10,delay:0.045}); break;
+    // bright major arpeggio C-E-G-C with shimmer
+    case 'gold':      [523,659,784,1047].forEach((f,i)=>note(f,0.22,{type:'triangle',vol:0.15,delay:i*0.06}));
+                      note(2093,0.3,{type:'sine',vol:0.06,delay:0.26}); break;
+    case 'goldAppear':note(1318,0.25,{type:'sine',vol:0.07,slideTo:1760}); break;
+    // warm rising fanfare
+    case 'levelup':   [523,659,784,1047,1319].forEach((f,i)=>note(f,0.26,{type:'triangle',vol:0.14,delay:i*0.08})); break;
+    // soft descending — not harsh
+    case 'death':     note(140,0.12,{type:'square',vol:0.2,slideTo:55});      // skull crack
+                      note(330,0.5,{type:'sine',vol:0.18,slideTo:110,delay:0.04});
+                      note(220,0.6,{type:'triangle',vol:0.12,slideTo:70,delay:0.09}); break;
+    case 'turn':      note(420,0.05,{type:'sine',vol:0.035}); break;
+    // bright coin shimmer when payout starts
+    case 'coin':      note(1568,0.18,{type:'triangle',vol:0.09,slideTo:2093}); break;
+    // crisp "cling" each time a coin lands in the wallet
+    case 'coinTick':  note(2349,0.07,{type:'sine',vol:0.06}); note(3136,0.05,{type:'sine',vol:0.04,delay:0.015}); break;
+    // warm confirm chord entering the game
+    case 'start':     [392,523,659,784].forEach((f,i)=>note(f,0.3,{type:'triangle',vol:0.12,delay:i*0.05})); break;
+    // heavy rock impact — deep boom
+    case 'thud':      note(95,0.32,{type:'sine',vol:0.32,slideTo:42}); note(150,0.14,{type:'triangle',vol:0.13,slideTo:60}); break;
+    // shimmering ascension when the snake molts
+    case 'molt':      note(880,0.5,{type:'sine',vol:0.10,slideTo:1760}); [1047,1319,1568,2093].forEach((f,i)=>note(f,0.3,{type:'triangle',vol:0.09,delay:0.08+i*0.06})); break;
+  }
+}
+
+// ----------------------------- GAME FLOW -----------------------------
+function resetGame(){
+  S.cfg = DIFF[S.diff]; S.grid = S.cfg.grid;
+  S.score=0; S.level=1; S.foodEaten=0; S.foodThisLevel=0;
+  S.tick=S.cfg.baseTick; S.accumulator=0; S.combo=0; S.lastEat=0; S.shake=0;
+  S.dir={x:1,z:0}; S.nextDir={x:1,z:0};
+  S.obstacles=[]; S.gold=null;
+  const mid = Math.floor(S.grid/2);
+  S.snake = [ {x:mid+1,z:mid}, {x:mid,z:mid}, {x:mid-1,z:mid} ];
+  S.prevSnake = S.snake.map(c=>({...c}));
+  buildArena();
+  syncObstacleMeshes();
+  spawnFood();
+  ensureSegMeshes(S.snake.length);
+  applyEvo(0);                       // reborn at the first tier
+  S.debris=null;                     // clear corpse physics
+  for(const m of segMeshes){ m.material.opacity=1; m.material.transparent=false; m.scale.setScalar(1); m.rotation.set(0,0,0); }
+  snakeGroup.visible=true; headDeco.visible=true;
+  updateHUD();
+}
+function startGame(){
+  resetGame();
+  S.runCoins=0;
+  S.gamesPlayed++; localStorage.setItem('ns_games', S.gamesPlayed);
+  S.mode='playing';
+  hide('menu'); hide('pause'); hide('gameover'); hide('profile');
+  audio(); // unlock on user gesture
+}
+const BLOOD=0xb20f1e, BLOOD2=0x7a0b16;
+function gameOver(){
+  if(S.mode==='gameover') return;
+  S.mode='gameover';
+  S.deathStart=performance.now();
+  const headPos=worldPos(S.snake[0],0.45);
+  S.deathPos=headPos.clone();
+  const n=S.snake.length;
+
+  // --- HEAD SMASH: skull crack + blood spurt ---
+  sfx('death'); S.shake=1.0;
+  shockwave(S.deathPos, BLOOD);
+  burst(headPos.clone(), BLOOD, 40, 2.4);              // initial blood spray
+  for(let k=1;k<=3;k++) setTimeout(()=>{                // ongoing bleed pulses
+    burst(headPos.clone().add(new THREE.Vector3(0,0.15,0)), k%2?BLOOD:BLOOD2, 22, 1.6);
+  }, k*140);
+  bloodSplatter(headPos);
+  vignettePulse(); flash(0.45);
+
+  // --- BODY DIES & FALLS APART: give every segment debris physics ---
+  S.debris=[];
+  for(let i=0;i<n;i++){
+    const dir=new THREE.Vector3((Math.random()-0.5)*1.4, 0.5+Math.random()*0.9, (Math.random()-0.5)*1.4).normalize();
+    const speed = i===0 ? 4.5 : 2+Math.random()*3.2;   // head pops hardest
+    S.debris[i]={
+      vel: dir.multiplyScalar(speed),
+      ang: new THREE.Vector3((Math.random()-0.5)*9,(Math.random()-0.5)*9,(Math.random()-0.5)*9),
+      s: (i===0 ? 1.14 : 1 - Math.min(0.32, i*0.011)),
+    };
+    // a little blood off each broken segment
+    if(i%3===0) burst(worldPos(S.snake[i],0.45), BLOOD2, 5, 1.0);
+  }
+
+  const newBest = S.score > S.best;
+  if(newBest){ S.best=S.score; localStorage.setItem('neon_serpent_best', S.best); }
+  document.getElementById('newbestLine').style.display = newBest?'block':'none';
+  document.getElementById('go-level').textContent=S.level;
+  // let the corpse crumble before the reveal
+  setTimeout(showGameOver, 1400);
+}
+function showGameOver(){
+  countUp('go-score', S.score, 850);
+  countUp('go-coins', S.runCoins, 850);
+  show('gameover');
+}
+function vignettePulse(){ const v=document.getElementById('vignette'); v.style.opacity=1; setTimeout(()=>v.style.opacity=0,520); }
+function countUp(id,to,dur=700){
+  const el=document.getElementById(id); const t0=performance.now();
+  (function step(){ const k=Math.min(1,(performance.now()-t0)/dur);
+    el.textContent=Math.round(to*(1-Math.pow(1-k,3))); if(k<1) requestAnimationFrame(step); })();
+}
+function levelUp(){
+  S.level++;
+  // speed ramp (tension): faster each level, clamped
+  S.tick = Math.max(S.cfg.minTick, S.cfg.baseTick - (S.level-1)*S.cfg.tickStep);
+  // add obstacles
+  for(let i=0;i<S.cfg.obstPerLvl;i++){ const c=randomFreeCell(); if(c){ c.born=performance.now(); c._landed=false; S.obstacles.push(c); } }
+  syncObstacleMeshes();
+  moltTo(Math.min(S.level-1, EVO.length-1));   // evolve / shed skin
+  sfx('levelup');
+  flash(0.32);
+  showLevelBanner();
+}
+// LỘT XÁC — shed old skin and ascend to a more VIP tier
+function moltTo(tier){
+  const n=S.snake.length;
+  // burst the old skin off along the body
+  const stepi=Math.max(1, Math.floor(n/16));
+  for(let i=0;i<n;i+=stepi) burst(worldPos(S.snake[i],0.45), colorForIndex(i,n), 7, 1.1);
+  applyEvo(tier);
+  S.moltUntil = performance.now()+800;          // glow flash window
+  shockwave(worldPos(S.snake[0],0), S.evoColors.head);
+  burst(worldPos(S.snake[0],0.45), S.evoColors.head, 24, 1.8);   // rebirth sparkle in NEW color
+  sfx('molt');
+  if(tier > S.bestEvo){ S.bestEvo=tier; localStorage.setItem('ns_evo', tier); }
+}
+
+// ----------------------------- TICK (grid logic) -----------------------------
+function tickStep(){
+  // apply queued direction (no 180° reverse)
+  if(!(S.nextDir.x===-S.dir.x && S.nextDir.z===-S.dir.z) && (S.nextDir.x||S.nextDir.z)){
+    if(S.nextDir.x!==S.dir.x || S.nextDir.z!==S.dir.z) sfx('turn');
+    S.dir = S.nextDir;
+  }
+  S.prevSnake = S.snake.map(c=>({...c}));
+  const head = S.snake[0];
+  const nx = head.x + S.dir.x, nz = head.z + S.dir.z;
+
+  // wall collision
+  if(nx<0||nz<0||nx>=S.grid||nz>=S.grid){ return gameOver(); }
+  // obstacle collision
+  if(S.obstacles.some(o=>o.x===nx&&o.z===nz)){ return gameOver(); }
+  // self collision (ignore tail tip which will move away when not growing)
+  const willGrow = (S.food && S.food.x===nx && S.food.z===nz) || (S.gold && S.gold.x===nx && S.gold.z===nz);
+  const body = willGrow ? S.snake : S.snake.slice(0, S.snake.length-1);
+  if(body.some(c=>c.x===nx&&c.z===nz)){ return gameOver(); }
+
+  // advance
+  S.snake.unshift({x:nx,z:nz});
+  let ate=false;
+
+  // gold first (overlap edge case)
+  if(S.gold && S.gold.x===nx && S.gold.z===nz){
+    onEat(true); ate=true;
+  } else if(S.food && S.food.x===nx && S.food.z===nz){
+    onEat(false); ate=true;
+  }
+  if(!ate) S.snake.pop();
+
+  // keep prevSnake length aligned with snake for interpolation
+  while(S.prevSnake.length < S.snake.length) S.prevSnake.push({...S.prevSnake[S.prevSnake.length-1]});
+  if(S.prevSnake.length > S.snake.length) S.prevSnake.length = S.snake.length;
+  ensureSegMeshes(S.snake.length);
+}
+
+function onEat(isGold){
+  const now=performance.now();
+  // combo
+  if(now - S.lastEat < COMBO_WINDOW) S.combo = Math.min(S.combo+1, COMBO_MAX);
+  else S.combo = 0;
+  S.lastEat = now;
+  const mult = 1 + S.combo*0.15;
+  const head = S.snake[0];
+
+  if(isGold){
+    const remain = Math.max(0, 1 - (now - S.gold.born)/GOLD_LIFETIME);
+    const pts = Math.round((50*S.level + Math.round(remain*50)) * mult);
+    S.score += pts;
+    burst(worldPos(head,0.45), COL.gold, 46, 1.5);
+    burst(worldPos(head,0.45), COL.cream, 20, 2.2);
+    shockwave(worldPos(head,0), COL.gold);
+    floatPop('+'+pts, worldPos(head,0.7), '#e7c06a', 1.4);
+    awardCoins(25 + Math.round(remain*15) + S.combo*2, worldPos(head,0.5));   // jackpot surge
+    sfx('gold'); flash(0.22); S.shake=Math.max(S.shake,0.32);
+    S.gold=null;
+    popCombo();
+  } else {
+    const pts = Math.round(10*S.level*mult);
+    S.score += pts;
+    burst(worldPos(head,0.45), COL.food2, 22, 1.0);
+    shockwave(worldPos(head,0), COL.food2);
+    floatPop('+'+pts, worldPos(head,0.7), '#f0a878', 1.0);
+    awardCoins(3 + S.combo, worldPos(head,0.5));
+    sfx('eat');
+    spawnFood();
+    maybeSpawnGold();
+    if(S.combo>=1) popCombo();
+  }
+  S.foodEaten++; S.foodThisLevel++;
+  S.lifeFood++; localStorage.setItem('ns_food', S.lifeFood);
+  if(S.foodThisLevel >= S.cfg.foodPerLvl){ S.foodThisLevel=0; levelUp(); }
+  updateHUD();
+}
+
+// ----------------------------- RENDER UPDATE -----------------------------
+const _a=new THREE.Vector3(), _b=new THREE.Vector3();
+function updateVisuals(dt, now){
+  const t = S.mode==='playing' ? Math.min(1, S.accumulator/S.tick) : 1;
+  const n = S.snake.length;
+  const dead = S.mode==='gameover';
+  snakeGroup.visible = true;
+  if(dead){ headDeco.visible=false; headLight.intensity=0; }
+
+  // molt flash: a wave of light sweeps head→tail right after evolving
+  const moltK = (S.moltUntil && now<S.moltUntil) ? (S.moltUntil-now)/800 : 0;
+  const baseEmi = S.evoMat ? S.evoMat.emi : 0.28;
+
+  if(dead && S.debris){
+    // CORPSE: every segment tumbles, falls, bounces, and fades to nothing
+    const age=(now-S.deathStart)/1400;
+    for(let i=0;i<segMeshes.length;i++){
+      const m=segMeshes[i]; if(!m||!m.visible) continue;
+      const d=S.debris[i]; if(!d) continue;
+      m.position.addScaledVector(d.vel, dt);
+      d.vel.y -= 9.0*dt;                                  // gravity
+      if(m.position.y < 0.18){ m.position.y=0.18; d.vel.y=Math.abs(d.vel.y)*0.34; d.vel.x*=0.7; d.vel.z*=0.7; } // bounce
+      m.rotation.x+=d.ang.x*dt; m.rotation.y+=d.ang.y*dt; m.rotation.z+=d.ang.z*dt;
+      const sc=Math.max(0, d.s*(1-age));                  // shrink → disintegrate
+      m.scale.setScalar(sc);
+      if(!m.material.transparent) m.material.transparent=true;
+      m.material.opacity=Math.max(0,1-age);
+    }
+  } else {
+    // snake segments: lerp prev->current cell
+    for(let i=0;i<n;i++){
+      const m=segMeshes[i]; if(!m) continue;
+      const cur=worldPos(S.snake[i], 0.45);
+      const prevCell = S.prevSnake[i] || S.snake[i];
+      const prev=worldPos(prevCell, 0.45);
+      m.position.copy(prev).lerp(cur, t);
+      // moving wave of light along the body during a molt
+      const moltPulse = moltK>0 ? Math.max(0, 1 - Math.abs((1-moltK)*n - i)/3) * moltK : 0;
+      // gentle taper: head a touch bigger, subtle wave down the body
+      const wave = 1 + Math.sin(now*0.005 - i*0.5)*0.025;
+      const s = (i===0 ? 1.14 : 1 - Math.min(0.32, i*0.011)) * wave * (1 + moltPulse*0.22);
+      m.scale.setScalar(s);
+      const col = colorForIndex(i,n);
+      m.material.color.copy(col);
+      m.material.emissive.copy(col);
+      m.material.emissiveIntensity = (i===0 ? baseEmi*1.7 : baseEmi) + moltK*0.8 + moltPulse*1.6;
+      m.rotation.y = 0;
+    }
+  }
+  // head eyes follow head position + facing direction
+  if(n && segMeshes[0] && !dead){
+    headDeco.visible = true;
+    headDeco.position.copy(segMeshes[0].position);
+    const ang = Math.atan2(S.dir.x, S.dir.z);
+    headDeco.rotation.y = THREE.MathUtils.lerp(headDeco.rotation.y||ang, ang, 0.4);
+    headDeco.scale.setScalar(segMeshes[0].scale.x);
+    headLight.position.copy(segMeshes[0].position).add(new THREE.Vector3(0,1.1,0));
+    headLight.intensity = S.mode==='playing'?1.4:0.6;
+    if(S.mode==='playing') trailEmit(segMeshes[0].position);
+  } else headDeco.visible=false;
+
+  // food: floating gem + soft halo
+  if(S.food){ foodMesh.visible=true; foodHalo.visible=true;
+    const p=worldPos(S.food,0.45); foodMesh.position.copy(p);
+    foodMesh.position.y = 0.45 + Math.sin(now*0.004)*0.08;
+    const s=1+Math.sin(now*0.006)*0.1; foodMesh.scale.setScalar(s);
+    foodMesh.rotation.y=now*0.0018; foodMesh.rotation.x=now*0.0012;
+    foodHalo.position.set(p.x,0.05,p.z); foodHalo.scale.setScalar(1+Math.sin(now*0.005)*0.08);
+    foodHalo.material.opacity=0.3+Math.sin(now*0.005)*0.12;
+    itemLight.color.set(COL.food); itemLight.position.set(p.x,0.7,p.z);
+    itemLight.intensity=0.7+Math.sin(now*0.006)*0.3;
+  } else { foodMesh.visible=false; foodHalo.visible=false; itemLight.intensity=0; }
+
+  // gold reward + countdown ring
+  if(S.gold){
+    const remain = 1 - (now - S.gold.born)/GOLD_LIFETIME;
+    if(remain<=0){ S.gold=null; goldMesh.visible=false; goldRing.visible=false; }
+    else {
+      goldMesh.visible=true; goldRing.visible=true;
+      const p=worldPos(S.gold,0.5); goldMesh.position.copy(p);
+      goldMesh.position.y = 0.52 + Math.sin(now*0.005)*0.1;
+      goldMesh.rotation.y=now*0.0035;
+      goldRing.position.set(p.x,0.06,p.z);
+      goldRing.scale.setScalar(1+ (1-remain)*0.25);
+      goldRing.material.opacity = remain*0.85;
+      goldMesh.material.emissiveIntensity = 0.6 + Math.abs(Math.sin(now*0.012))*0.4;
+      itemLight.color.set(COL.gold); itemLight.position.set(p.x,0.85,p.z);
+      itemLight.intensity = 1.3 + Math.abs(Math.sin(now*0.012))*0.5;
+      if(Math.random()<0.25) burst(goldMesh.position, COL.cream, 1, 0.5);   // periodic sparkle
+      const warn=document.getElementById('goldwarn');
+      warn.style.opacity = remain<0.4 ? (0.4+Math.abs(Math.sin(now*0.012))*0.5) : 0;
+    }
+  } else { goldMesh.visible=false; goldRing.visible=false; document.getElementById('goldwarn').style.opacity=0; }
+
+  // rocks plummet from the sky and slam down (quake on impact)
+  for(let i=0;i<S.obstacles.length;i++){
+    const m=obstMeshes[i], o=S.obstacles[i]; if(!m||!o) continue;
+    const age=now-(o.born||0);
+    if(age<ROCK_FALL){ const k=age/ROCK_FALL; m.position.y = ROCK_Y + (ROCK_DROP-ROCK_Y)*(1-k*k); }   // accelerating fall
+    else {
+      if(!o._landed){ o._landed=true; onRockLand(m.position); }
+      const b=age-ROCK_FALL; m.position.y = b<150 ? ROCK_Y + Math.sin(b/150*Math.PI)*0.16 : ROCK_Y;     // settle bounce
+    }
+  }
+
+  updateParticles(dt);
+  updateShocks(dt);
+  updateSplatter(now);
+  dust.rotation.y = now*0.00004;   // slow atmospheric drift
+
+  // camera shake
+  if(S.shake>0){
+    S.shake=Math.max(0,S.shake-dt*2);
+    const k=S.shake*S.shake*0.9;
+    camera.position.x += (Math.random()-0.5)*k;
+    camera.position.y += (Math.random()-0.5)*k;
+  }
+}
+
+// ----------------------------- HUD / OVERLAYS -----------------------------
+function updateHUD(){
+  document.getElementById('ui-score').textContent=S.score;
+  document.getElementById('ui-level').textContent=S.level;
+  document.getElementById('ui-best').textContent=Math.max(S.best,S.score);
+  // speed fill: how close to max speed
+  const range = S.cfg.baseTick - S.cfg.minTick;
+  const fill = range>0 ? Math.min(100, ((S.cfg.baseTick - S.tick)/range)*100) : 0;
+  document.getElementById('speedfill').style.height = fill+'%';
+}
+let comboTimer=null;
+function popCombo(){
+  const el=document.getElementById('combo');
+  el.textContent = S.combo>0 ? `COMBO x${(1+S.combo*0.15).toFixed(2)}` : '';
+  el.style.opacity=1; el.style.transform='translateX(-50%) scale(1.15)';
+  clearTimeout(comboTimer);
+  comboTimer=setTimeout(()=>{ el.style.opacity=0; el.style.transform='translateX(-50%) scale(.6)'; }, 900);
+}
+function showLevelBanner(){
+  const b=document.getElementById('levelbanner');
+  b.querySelector('.lv').textContent='CẤP '+S.level;
+  b.querySelector('.tag').textContent='✦ LỘT XÁC · '+EVO[S.evo].name+' ✦';
+  b.style.transition='none'; b.style.opacity='0'; b.style.transform='translate(-50%,-50%) scale(.4)';
+  requestAnimationFrame(()=>{ b.style.transition='all .4s cubic-bezier(.2,1.3,.4,1)'; b.style.opacity='1'; b.style.transform='translate(-50%,-50%) scale(1)';
+    setTimeout(()=>{ b.style.opacity='0'; b.style.transform='translate(-50%,-50%) scale(1.4)'; }, 850); });
+}
+function flash(intensity=0.4){ const f=document.getElementById('flash'); f.style.transition='none'; f.style.opacity=intensity;
+  requestAnimationFrame(()=>{ f.style.transition='opacity .4s'; f.style.opacity=0; }); }
+function show(id){ document.getElementById(id).classList.remove('hidden'); }
+function hide(id){ document.getElementById(id).classList.add('hidden'); }
+// floating "+score" popup projected from 3D world to screen
+const _proj=new THREE.Vector3();
+function worldToScreen(worldVec){ _proj.copy(worldVec).project(camera);
+  return { x:(_proj.x*0.5+0.5)*innerWidth, y:(-_proj.y*0.5+0.5)*innerHeight }; }
+function floatPop(text, worldVec, color='#fff', scale=1){
+  const {x,y}=worldToScreen(worldVec);
+  const el=document.createElement('div'); el.className='pop'; el.textContent=text;
+  el.style.left=x+'px'; el.style.top=y+'px'; el.style.color=color; el.style.fontSize=(22*scale)+'px';
+  document.getElementById('popups').appendChild(el);
+  setTimeout(()=>el.remove(), 1000);
+}
+
+// ----------------------------- COIN / WALLET -----------------------------
+function renderWallet(){
+  document.getElementById('wval').textContent = Math.floor(walletShown).toLocaleString('vi-VN');
+}
+function addToWallet(n){
+  S.wallet += n; walletTarget = S.wallet;
+  localStorage.setItem('ns_wallet', S.wallet);
+  const w=document.getElementById('wallet'); w.classList.add('bump');
+  clearTimeout(w._t); w._t=setTimeout(()=>w.classList.remove('bump'),130);
+  sfx('coinTick');
+}
+// coins burst from the pickup point and surge into the wallet chip
+function awardCoins(amount, worldVec){
+  if(amount<=0) return;
+  S.runCoins += amount;
+  const start = worldToScreen(worldVec);
+  const w = document.getElementById('wallet').getBoundingClientRect();
+  const tx = w.left+14, ty = w.top + w.height/2;
+  const sprites = Math.min(amount, 12);
+  const per = Math.floor(amount/sprites), extra = amount - per*sprites;
+  for(let i=0;i<sprites;i++){
+    const give = per + (i<extra?1:0);
+    const c=document.createElement('div'); c.className='coinfly';
+    const jx=start.x+(Math.random()-0.5)*40, jy=start.y+(Math.random()-0.5)*40;
+    c.style.transform=`translate(${jx}px,${jy}px) scale(.7)`; c.style.opacity='0';  // wait at head during delay
+    document.body.appendChild(c);
+    const delay=i*50, dur=620+Math.random()*120;
+    requestAnimationFrame(()=>{
+      c.animate([
+        {transform:`translate(${jx}px,${jy}px) scale(.7)`,opacity:0,offset:0},
+        {transform:`translate(${jx}px,${jy}px) scale(1.1)`,opacity:1,offset:0.1},
+        {transform:`translate(${tx}px,${ty}px) scale(.55)`,opacity:1,offset:1},
+      ],{duration:dur,delay,easing:'linear',fill:'both'});   // straight-line linear move
+    });
+    setTimeout(()=>{ c.remove(); addToWallet(give); }, delay+dur+20);
+  }
+  sfx('coin');
+}
+// rank tiers by lifetime coins
+function rankFor(coins){
+  if(coins>=5000) return 'Huyền Thoại';
+  if(coins>=2000) return 'Cao Thủ';
+  if(coins>=800)  return 'Kỳ Cựu';
+  if(coins>=250)  return 'Lão Luyện';
+  if(coins>=60)   return 'Tập Sự';
+  return 'Tân Binh';
+}
+function openProfile(){
+  document.getElementById('p-wallet').textContent = S.wallet.toLocaleString('vi-VN');
+  document.getElementById('p-best').textContent   = S.best.toLocaleString('vi-VN');
+  document.getElementById('p-games').textContent  = S.gamesPlayed;
+  document.getElementById('p-food').textContent   = S.lifeFood.toLocaleString('vi-VN');
+  document.getElementById('p-evo').textContent     = EVO[S.bestEvo].name;
+  document.getElementById('p-rank').textContent   = rankFor(S.wallet);
+  hide('menu'); show('profile');
+}
+
+// ----------------------------- INPUT -----------------------------
+function setDir(x,z){ if(S.mode!=='playing') return; S.nextDir={x,z}; }
+addEventListener('keydown', e=>{
+  const k=e.key.toLowerCase();
+  if(['arrowup','arrowdown','arrowleft','arrowright',' '].includes(e.key.toLowerCase?.()||'')){}
+  if(k==='arrowup'||k==='w') setDir(0,-1);
+  else if(k==='arrowdown'||k==='s') setDir(0,1);
+  else if(k==='arrowleft'||k==='a') setDir(-1,0);
+  else if(k==='arrowright'||k==='d') setDir(1,0);
+  else if(k===' '){ e.preventDefault(); togglePause(); }
+  else if(k==='r'){ if(S.mode==='playing'||S.mode==='paused'||S.mode==='gameover') startGame(); }
+});
+// touch swipe
+let tsx=0,tsy=0;
+addEventListener('touchstart',e=>{ const t=e.touches[0]; tsx=t.clientX; tsy=t.clientY; },{passive:true});
+addEventListener('touchend',e=>{
+  const t=e.changedTouches[0]; const dx=t.clientX-tsx, dy=t.clientY-tsy;
+  if(Math.abs(dx)<24&&Math.abs(dy)<24) return;
+  if(Math.abs(dx)>Math.abs(dy)) setDir(dx>0?1:-1,0); else setDir(0,dy>0?1:-1);
+},{passive:true});
+
+function togglePause(){
+  if(S.mode==='playing'){ S.mode='paused'; show('pause'); }
+  else if(S.mode==='paused'){ S.mode='playing'; hide('pause'); }
+}
+
+// buttons
+document.querySelectorAll('[data-diff]').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('[data-diff]').forEach(x=>x.classList.remove('sel'));
+  b.classList.add('sel'); S.diff=b.dataset.diff;
+}));
+document.getElementById('startBtn').onclick=startGame;
+document.getElementById('resumeBtn').onclick=togglePause;
+document.getElementById('pauseRestart').onclick=startGame;
+document.getElementById('pauseMenu').onclick=()=>{ S.mode='menu'; hide('pause'); show('menu'); };
+document.getElementById('retryBtn').onclick=startGame;
+document.getElementById('goMenu').onclick=()=>{ S.mode='menu'; hide('gameover'); show('menu'); };
+document.getElementById('profileBtn').onclick=openProfile;
+document.getElementById('profClose').onclick=()=>{ hide('profile'); show('menu'); };
+
+// ----------------------------- INTRO → MENU -----------------------------
+let introDone=false;
+function dismissIntro(){ if(introDone) return; introDone=true; audio(); sfx('start');
+  const i=document.getElementById('intro'); i.style.opacity=0;
+  setTimeout(()=>{ hide('intro'); S.mode='menu'; show('menu'); }, 380); }
+['click','pointerdown','touchstart'].forEach(ev=>document.getElementById('intro').addEventListener(ev,dismissIntro,{passive:true}));
+addEventListener('keydown',()=>{ if(!introDone) dismissIntro(); });
+setTimeout(dismissIntro, 6500);   // auto-advance if idle
+
+// ----------------------------- MOBILE CONTROLS -----------------------------
+const isTouch = ('ontouchstart' in window) || navigator.maxTouchPoints>0;
+if(isTouch) document.body.classList.add('touch');
+document.querySelectorAll('.dbtn').forEach(b=>{
+  const fire=e=>{ e.preventDefault(); audio();
+    setDir(+b.dataset.dx, +b.dataset.dz);
+    b.classList.add('act'); setTimeout(()=>b.classList.remove('act'),110);
+    if(navigator.vibrate) navigator.vibrate(8);
+  };
+  b.addEventListener('pointerdown', fire);
+  b.addEventListener('touchstart', fire, {passive:false}); // fallback for older mobile
+});
+const stop=e=>{e.preventDefault();e.stopPropagation();};
+document.getElementById('mPause').addEventListener('pointerdown',e=>{stop(e);
+  if(S.mode==='playing'||S.mode==='paused') togglePause();});
+document.getElementById('mRestart').addEventListener('pointerdown',e=>{stop(e); startGame();});
+
+// ----------------------------- IDLE MENU SCENE -----------------------------
+// show a slow idle snake behind menu for vibe
+buildArena();
+S.snake=[{x:10,z:10},{x:9,z:10},{x:8,z:10}]; S.prevSnake=S.snake.map(c=>({...c}));
+ensureSegMeshes(3); spawnFood();
+applyEvo(0);      // menu snake starts at tier 0
+document.getElementById('ui-best').textContent=S.best;
+renderWallet();
+S.mode='intro';   // start on the cinematic intro
+
+// ----------------------------- MAIN LOOP -----------------------------
+let last=performance.now();
+function loop(now){
+  requestAnimationFrame(loop);
+  const dt=Math.min(0.05,(now-last)/1000); last=now;
+
+  if(S.mode==='playing'){
+    S.accumulator += dt*1000;
+    let guard=0;
+    while(S.accumulator >= S.tick && S.mode==='playing' && guard<5){ S.accumulator-=S.tick; tickStep(); guard++; }
+  } else if(S.mode==='menu'||S.mode==='intro'){
+    // idle drift for the living backdrop
+    S.accumulator += dt*1000;
+    if(S.accumulator>320){ S.accumulator=0; idleDrift(); }
+  }
+
+  // aspect-aware framing: fit the whole arena on any screen (portrait phones too)
+  const vFov = THREE.MathUtils.degToRad(camera.fov);
+  const t = Math.tan(vFov/2);
+  const margin = S.grid * 0.64;                       // arena half-extent + padding
+  const fitDist = Math.max(margin/t, margin/(t*camera.aspect));
+  const baseDist = fitDist;
+  const idle = (S.mode==='menu'||S.mode==='intro');
+  const orbit = idle ? now*0.00012 : 0;
+  camera.position.x = Math.sin(orbit)*baseDist*0.16;
+  camera.position.z = baseDist*0.62 + Math.cos(orbit)*baseDist*0.04;
+  camera.position.y = baseDist*0.74;
+  camera.lookAt(0,0,0);
+
+  // death cinematic: lunge the camera toward the fallen head
+  if(S.mode==='gameover' && S.deathPos){
+    const k=Math.min(1,(now-S.deathStart)/1000);
+    const zx=S.deathPos.x*0.5, zz=S.deathPos.z*0.5+baseDist*(0.62-0.30*k), zy=baseDist*(0.74-0.34*k);
+    camera.position.lerp(new THREE.Vector3(zx,zy,zz), 0.12);
+    camera.lookAt(S.deathPos.x, 0.3, S.deathPos.z);
+  }
+
+  // wallet count-up surge
+  if(walletShown < walletTarget){
+    walletShown += Math.max(1, (walletTarget-walletShown)*0.16);
+    if(walletShown > walletTarget) walletShown = walletTarget;
+    renderWallet();
+  }
+
+  updateVisuals(dt, now);
+  composer.render();
+}
+function idleDrift(){
+  // wander the idle snake harmlessly
+  const dirs=[{x:1,z:0},{x:-1,z:0},{x:0,z:1},{x:0,z:-1}];
+  const h=S.snake[0]; let d=S.dir;
+  const nx=h.x+d.x, nz=h.z+d.z;
+  if(nx<2||nz<2||nx>S.grid-2||nz>S.grid-2||Math.random()<0.2){ d=dirs[(Math.random()*4)|0]; S.dir=d; }
+  S.prevSnake=S.snake.map(c=>({...c}));
+  const head={x:Math.max(1,Math.min(S.grid-2,h.x+S.dir.x)),z:Math.max(1,Math.min(S.grid-2,h.z+S.dir.z))};
+  S.snake.unshift(head); S.snake.pop();
+  while(S.prevSnake.length<S.snake.length) S.prevSnake.push({...S.prevSnake[S.prevSnake.length-1]});
+}
+
+addEventListener('resize',()=>{
+  camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth,innerHeight); composer.setSize(innerWidth,innerHeight);
+});
+
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
