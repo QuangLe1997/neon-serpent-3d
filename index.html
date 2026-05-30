@@ -215,8 +215,9 @@
     100%{opacity:0;transform:translate(-50%,-185%) scale(1.05);}}
 
   /* ---------- INTRO (cinematic) ---------- */
-  /* translucent so the live snake demo plays behind the logo */
-  #intro{z-index:40;background:radial-gradient(circle at 50% 42%,rgba(9,15,26,.42) 0%,rgba(6,9,16,.72) 55%,rgba(3,5,10,.92) 100%);gap:0;}
+  /* light veil so the live snake demo + drifting planets read clearly behind the
+     logo. Title legibility comes from .intro-stage::before + the title drop-shadow. */
+  #intro{z-index:40;background:radial-gradient(circle at 50% 42%,rgba(7,11,20,.16) 0%,rgba(5,8,14,.40) 58%,rgba(3,5,10,.70) 100%);gap:0;backdrop-filter:blur(1.5px);}
   .intro-stage{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;}
   .intro-stage::before{content:'';position:absolute;inset:-60px -90px;z-index:-1;
     background:radial-gradient(ellipse at center,rgba(4,6,12,.82) 0%,rgba(4,6,12,.5) 45%,transparent 72%);}
@@ -236,7 +237,9 @@
 
   /* ---------- GRAND MENU ---------- */
   /* compact, single-line title; pill-style difficulty picker; tight footer */
-  #menu{gap:18px;}
+  /* lighter veil than pause/gameover so the drifting planets stay visible behind
+     the panel — the panel has its own solid surface for control legibility. */
+  #menu{gap:18px;background:radial-gradient(125% 95% at 50% 32%,rgba(8,12,20,.30),rgba(4,7,12,.70));backdrop-filter:blur(1.5px);}
   .menu-title{font-size:clamp(36px,8vw,64px);letter-spacing:6px;line-height:1;}
   #menu .menu-panel{max-width:400px;padding:24px 22px 20px;}
   .diff-label{font-size:10px;letter-spacing:5px;opacity:.55;text-transform:uppercase;text-align:center;
@@ -874,6 +877,7 @@ function updateCosmos(now, dt){
     if(k>=1){ cometOn=false; comet.visible=false; cometNext=now+18000+Math.random()*16000; }
   }
   updateFlyby(now, dt);
+  updateMenuCosmos(now, dt);
 }
 
 // ----------------------------- COSMIC FLYBY EVENTS -----------------------------
@@ -924,8 +928,11 @@ const FLYBY_BODIES=[
 ];
 let flyby=null, flybyNextAt=0;
 function scheduleNextFlyby(now){
-  // 50–110 s between events — generous breathing room, not constant noise
-  flybyNextAt = now + 50000 + Math.random()*60000;
+  // attract mode (intro/menu): lively — a dramatic flyby every ~12-24s on top of
+  // the always-present menu cosmos. In-game: generous 50–110s so it never distracts.
+  const attract = (S.mode==='intro' || S.mode==='menu');
+  flybyNextAt = attract ? now + 12000 + Math.random()*12000
+                        : now + 50000 + Math.random()*60000;
 }
 function pickFlyby(){
   const r=Math.random();
@@ -954,19 +961,17 @@ function _camPath(distance, sideStart, sideEnd, lift){
   return [ make(sideStart, lift), make(sideEnd, lift+(Math.random()-0.5)*4) ];
 }
 
-function buildPlanetFlyby(){
-  const v = FLYBY_BODIES[(Math.random()*FLYBY_BODIES.length)|0];
-  const r = v.rR[0] + Math.random()*(v.rR[1]-v.rR[0]);
+// Shared builder: a celestial body grp with sphere + optional ring + halo sprite.
+// Stars are self-luminous (MeshBasicMaterial), planets get PBR shading. Reused by
+// the dramatic in-game flyby AND the always-present menu cosmos.
+function makeCelestialBody(v, r){
   const grp = new THREE.Group();
-  // STARS are self-luminous — MeshBasicMaterial keeps them bright and "hot",
-  // independent of the scene's directional lights. Planets get PBR shading.
   const body = (v.type==='star')
     ? new THREE.Mesh(new THREE.SphereGeometry(r, 48, 32), new THREE.MeshBasicMaterial({color:v.col, fog:false}))
     : new THREE.Mesh(new THREE.SphereGeometry(r, 48, 32), new THREE.MeshStandardMaterial({
         color:v.col, roughness:0.85, metalness:0.04, emissive:v.emi||0x000000, emissiveIntensity:0.18, fog:false
       }));
   grp.add(body);
-  // optional ring — gas giants only
   if(v.ring){
     const ring=new THREE.Mesh(
       new THREE.RingGeometry(r*v.ring.inner, r*v.ring.outer, 96),
@@ -976,10 +981,16 @@ function buildPlanetFlyby(){
     ring.rotation.z = (Math.random()-0.5)*0.45;
     body.add(ring);
   }
-  // halo — bigger / brighter for stars, subtle for rocky planets
   const baseHaloScale = r * v.haloMul;
   const halo=new THREE.Sprite(new THREE.SpriteMaterial({map:COSMOS_TEX, color:v.halo, transparent:true, opacity:v.haloOp, blending:THREE.AdditiveBlending, depthWrite:false, fog:false}));
   halo.scale.set(baseHaloScale, baseHaloScale, 1); grp.add(halo);
+  return { grp, body, halo, baseHaloScale };
+}
+
+function buildPlanetFlyby(){
+  const v = FLYBY_BODIES[(Math.random()*FLYBY_BODIES.length)|0];
+  const r = v.rR[0] + Math.random()*(v.rR[1]-v.rR[0]);
+  const { grp, body, halo, baseHaloScale } = makeCelestialBody(v, r);
   // drift path in camera space — guaranteed to enter the sky band on screen
   const dir=Math.random()<0.5?1:-1;
   const dist=70+Math.random()*25;
@@ -1185,6 +1196,83 @@ function updateFlyby(now, dt){
     if(done){ flyby.cleanup(); flyby=null; scheduleNextFlyby(now); }
   }
 }
+
+// ----------------------------- MENU COSMOS (always-present showcase) -----------------------------
+// A handful of planets/stars that hang in the sky behind the title & menu so the
+// player feels "lost among the galaxy". They slowly drift, rotate, and (stars)
+// pulse. Hidden during play (scaled away) so they never distract from the snake.
+let menuCosmos=null, menuCosmosVis=0;
+function buildMenuCosmos(){
+  if(!COSMOS || menuCosmos) return;
+  const group=new THREE.Group(); scene.add(group);
+  const byName=n=>FLYBY_BODIES.find(b=>b.name===n);
+  // hand-picked composition. Positions are CAMERA-RELATIVE offsets (dist forward,
+  // side, lift up) — same framing trick the flybys use — baked to world coords on
+  // the first frame so they sit in the visible sky band and gain parallax as the
+  // menu camera slowly orbits. (dist 55-100, lift 4-20 keeps them upper-screen.)
+  const layout=[
+    { def:byName('saturn'),      r:7.5,  dist:108, side:-40, lift:15, spin:0.04 },
+    { def:byName('neon-cyan'),   r:3.0,  dist:96,  side: 36, lift:18, spin:0.10 },
+    { def:byName('mars'),        r:4.0,  dist:78,  side: 30, lift: 8, spin:0.06 },
+    { def:byName('neptune'),     r:6.0,  dist:124, side:-54, lift:21, spin:0.05 },
+    { def:byName('blue-dwarf'),  r:2.6,  dist:116, side: 16, lift:22, spin:0.08 },
+    { def:byName('mercury'),     r:3.0,  dist:84,  side:-18, lift: 7, spin:0.05 },
+  ];
+  const items=[];
+  for(let i=0;i<layout.length;i++){
+    const L=layout[i]; if(!L.def) continue;
+    const { grp, body, halo, baseHaloScale } = makeCelestialBody(L.def, L.r);
+    grp.rotation.y = i*1.3;
+    group.add(grp);
+    items.push({
+      grp, body, halo, baseHaloScale, baseHaloOp:L.def.haloOp, pulseAmp:L.def.pulse||0,
+      spin:L.spin, dist:L.dist, side:L.side, lift:L.lift,
+      bobAmp:0.5+Math.random()*0.8, bobPh:i*1.7,
+      driftX:(0.16+Math.random()*0.18)*(i%2?1:-1),   // very slow lateral drift, alternating
+      placed:false, base:new THREE.Vector3(),
+    });
+  }
+  menuCosmos={ group, items };
+  group.scale.setScalar(0.0001);     // start hidden; fades in when intro/menu active
+  group.visible=false;
+}
+function updateMenuCosmos(now, dt){
+  if(!menuCosmos) return;
+  // target visibility: present only in the attract screens
+  const want = (S.mode==='intro' || S.mode==='menu') ? 1 : 0;
+  menuCosmosVis += (want - menuCosmosVis) * Math.min(1, dt*2.2);
+  const vis = menuCosmosVis;
+  menuCosmos.group.visible = vis > 0.01;
+  if(!menuCosmos.group.visible) return;
+  menuCosmos.group.scale.setScalar(Math.max(0.0001, vis));
+  // bake camera-relative offsets to world positions once (camera is settled by now)
+  const b=_cameraBasis();
+  // portrait: narrow horizontal FOV → squeeze lateral spread; and lift planets
+  // higher so they sit in the thin top sky band, above the centered panel.
+  const portraitMenu = camera.aspect < 1;
+  const sideScale = portraitMenu ? camera.aspect*0.6 : 1;
+  const liftScale = portraitMenu ? 1.8 : 1;
+  for(const it of menuCosmos.items){
+    if(!it.placed){
+      it.base.copy(b.cam).addScaledVector(b.fwd, it.dist).addScaledVector(b.right, it.side*sideScale).addScaledVector(b.up, it.lift*liftScale);
+      it.base0X = it.base.x;     // anchor for the drift wrap
+      it.placed=true;
+    }
+    it.body.rotation.y += it.spin*dt;
+    // slow lateral drift, wrapping within ±70 of the anchor so they parade past forever
+    it.base.x += it.driftX*dt;
+    if(it.base.x > it.base0X + 70) it.base.x = it.base0X - 70;
+    if(it.base.x < it.base0X - 70) it.base.x = it.base0X + 70;
+    // apply position with a gentle vertical bob
+    it.grp.position.set(it.base.x, it.base.y + Math.sin(now*0.0004 + it.bobPh)*it.bobAmp, it.base.z);
+    // stars breathe (halo scale + opacity oscillate)
+    if(it.pulseAmp){
+      const s = it.baseHaloScale * (1 + Math.sin(now*0.0014 + it.bobPh)*it.pulseAmp);
+      it.halo.scale.set(s, s, 1);
+      it.halo.material.opacity = it.baseHaloOp * (1 + Math.sin(now*0.0014 + it.bobPh)*0.18);
+    }
+  }
+}
 // dev helpers (safe to remove): force a specific cosmic event for inspection
 window._forceFlyby=(type)=>{
   if(flyby){ flyby.cleanup(); flyby=null; }
@@ -1198,6 +1286,16 @@ window._flybyStatus=()=>flyby ? {
   pos: flyby.grp ? [flyby.grp.position.x|0, flyby.grp.position.y|0, flyby.grp.position.z|0] : null,
   camera: [camera.position.x|0, camera.position.y|0, camera.position.z|0]
 } : null;
+window._menuCosmosDebug=()=>{
+  if(!menuCosmos) return 'none';
+  return menuCosmos.items.map(it=>{
+    const w=new THREE.Vector3(); it.grp.getWorldPosition(w);
+    const n=w.clone().project(camera);
+    return { y0:it.baseY|0, world:[w.x|0,w.y|0,w.z|0],
+      screen:[Math.round((n.x*0.5+0.5)*100), Math.round((1-(n.y*0.5+0.5))*100)],   // % of viewport
+      inFront:n.z<1, vis:menuCosmosVis.toFixed(2) };
+  });
+};
 
 // ----------------------------- BIOME (changes with evolution tier) -----------------------------
 let floorTintMat=null, gridMatRef=null, edgeMatRef=null, reflector=null;
@@ -2408,7 +2506,8 @@ armMobileBtn('mRestart', startGame);
 // self-playing snake demo behind the intro/menu
 startDemo();
 buildCosmos();                                      // desktop: surround the arena with a living cosmos
-if(typeof scheduleNextFlyby==='function') scheduleNextFlyby(performance.now()); // first cosmic event 50–110s in
+buildMenuCosmos();                                  // always-present planets/stars behind the title & menu
+if(typeof scheduleNextFlyby==='function') scheduleNextFlyby(performance.now()); // seeds attract-mode pacing
 const introDashUntil = performance.now() + 3000;   // border-sprint window during intro
 document.getElementById('ui-best').textContent=S.best;
 renderWallet();
@@ -2451,10 +2550,13 @@ function loop(now){
       while(S.accumulator >= effTick && S.mode==='playing' && !S.grace && guard<5){ S.accumulator-=effTick; tickStep(); guard++; }
     }
   } else if(S.mode==='menu'||S.mode==='intro'){
-    // attract mode: first ~3s of intro = fast border dash, then hunt food
+    // attract mode: the snake patrols the arena rim — a steady "crawling around
+    // the outside" loop that frames the title. Biome/skin cycles slowly for flair.
     S.accumulator += dt*1000;
-    const dashing = (S.mode==='intro' && now < introDashUntil);
-    if(S.accumulator > (dashing?72:190)){ S.accumulator=0; dashing ? dashStep() : demoStep(); }
+    const step = (S.mode==='intro' && now < introDashUntil) ? 76 : 104;   // brisk intro, calm cruise after
+    if(S.accumulator > step){ S.accumulator=0; dashStep(); }
+    if(!S._nextEvoAt) S._nextEvoAt = now + 7000;
+    if(now > S._nextEvoAt){ S._nextEvoAt = now + 7000; applyEvo(((S.evo||0)+1)%EVO.length); }
   }
 
   // fit the RECTANGULAR arena (cols × rows) — fills the screen, taller on portrait
@@ -2523,10 +2625,14 @@ let fpsAccum=0, fpsFrames=0, lastDowngrade=0;
 // ATTRACT MODE: a self-playing snake that hunts & eats food behind the intro/menu
 function startDemo(){
   computeDims(); buildArena();
-  const mx=Math.floor(S.cols/2), mz=Math.floor(S.rows/2);
-  S.snake=[{x:mx,z:mz},{x:mx-1,z:mz},{x:mx-2,z:mz}]; S.prevSnake=S.snake.map(c=>({...c}));
-  S.dir={x:1,z:0}; S.demoEaten=0; S.accumulator=0;
-  ensureSegMeshes(3); applyEvo(0); spawnFood();
+  // start as a longer snake already ON the top rim, heading right → it immediately
+  // reads as a serpent patrolling the border (dashStep circles clockwise from here).
+  const len=Math.min(14, S.cols-3);
+  const hz=1, hx=Math.min(S.cols-2, len+1);
+  S.snake=[]; for(let i=0;i<len;i++) S.snake.push({x:Math.max(1,hx-i), z:hz});
+  S.prevSnake=S.snake.map(c=>({...c}));
+  S.dir={x:1,z:0}; S.demoEaten=0; S.accumulator=0; S._nextEvoAt=0;
+  ensureSegMeshes(len); applyEvo(0); spawnFood();
   snakeGroup.visible=true; headDeco.visible=true; S.debris=null;
   for(const m of segMeshes){ m.material.opacity=1; m.material.transparent=false; m.scale.setScalar(1); m.rotation.set(0,0,0); }
 }
